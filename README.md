@@ -3,9 +3,9 @@
 Group project for Software Architecture.
 
 ## Team
-- Aaron Santa Cruz (owner)
-- _Teammate 2_
-- _Teammate 3_
+- Aaron Santa Cruz (@aaronvsc) — owner
+- @georgiana0818
+- @rahimcantcode
 
 ## Overview
 _Project description and requirements coming soon._
