@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from smart_shelf.common.models import Ingredient
+from smart_shelf.common.models import Ingredient, Nutrition, Substitute
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
@@ -99,3 +99,48 @@ def load_ingredients(path: Path | None = None
                                 f"{owner[key]!r} and {ing.name!r}")
             owner[key] = ing.name
     return ingredients, restrictions
+
+
+NUTRITION_FIELDS = ("kcal", "protein_g", "carbs_g", "fat_g")
+
+
+def load_substitutions_nutrition(ingredients: dict[str, Ingredient], path: Path | None = None
+                                 ) -> tuple[dict[str, tuple[Substitute, ...]], dict[str, Nutrition]]:
+    """Load the Substitution & Nutrition Data.
+
+    Needs the already-loaded ingredients so every name can be checked against the
+    Ingredient Dictionary. Returns (substitutes by ingredient, nutrition by ingredient).
+    """
+    path = Path(path) if path else DATA_DIR / "substitutions_nutrition.json"
+    raw = _read_json(path)
+    if not isinstance(raw, dict) or not isinstance(raw.get("ingredients"), dict):
+        raise DataError(f"{path.name} needs an 'ingredients' section")
+
+    substitutes: dict[str, tuple[Substitute, ...]] = {}
+    nutrition: dict[str, Nutrition] = {}
+    for name, entry in raw["ingredients"].items():
+        where = f"{path.name}, {name!r}"
+        if name not in ingredients:
+            raise DataError(f"{where}: not in the Ingredient Dictionary")
+
+        if "nutrition" in entry:
+            values = entry["nutrition"]
+            if set(values) != set(NUTRITION_FIELDS):
+                raise DataError(f"{where}: nutrition needs exactly {NUTRITION_FIELDS}")
+            if any(not isinstance(v, (int, float)) or v < 0 for v in values.values()):
+                raise DataError(f"{where}: nutrition values must be numbers 0 or higher")
+            nutrition[name] = Nutrition(**{k: float(values[k]) for k in NUTRITION_FIELDS})
+
+        subs = []
+        for sub in entry.get("substitutes", []):
+            sub_name, ratio = sub.get("name"), sub.get("ratio", 1.0)
+            if sub_name not in ingredients:
+                raise DataError(f"{where}: substitute {sub_name!r} is not in the Ingredient Dictionary")
+            if sub_name == name:
+                raise DataError(f"{where}: an ingredient can't substitute for itself")
+            if not isinstance(ratio, (int, float)) or ratio <= 0:
+                raise DataError(f"{where}: substitute ratio for {sub_name!r} must be a positive number")
+            subs.append(Substitute(sub_name, float(ratio)))
+        if subs:
+            substitutes[name] = tuple(subs)
+    return substitutes, nutrition
