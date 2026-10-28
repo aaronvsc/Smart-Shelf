@@ -10,9 +10,9 @@ import json
 import pytest
 
 from smart_shelf.common.data_access import (
-    DataError, load_ingredients, load_substitutions_nutrition,
+    DataError, load_ingredients, load_recipes, load_reference_data, load_substitutions_nutrition,
 )
-from smart_shelf.common.models import Nutrition, Substitute
+from smart_shelf.common.models import Nutrition, ReferenceData, Substitute
 
 
 def write(tmp_path, data, name="ingredients.json"):
@@ -184,3 +184,58 @@ def test_bad_nutrition_raises(tmp_path, two_ingredients):
     negative = {"ingredients": {"butter": {"nutrition": nutrition(kcal=-5)}}}
     with pytest.raises(DataError, match="0 or higher"):
         load_substitutions_nutrition(two_ingredients, write(tmp_path, negative, "b.json"))
+
+
+# ----------------------------------------------------------- recipe database
+
+def recipe(rid="R001", ingredients=None, **extra):
+    data = {"id": rid, "name": "Test Recipe", "cuisine": "American", "cook_time_min": 10,
+            "ingredients": ingredients or [{"name": "butter", "qty": 2, "unit": "g"}]}
+    data.update(extra)
+    return data
+
+
+def test_real_recipes_load_with_unique_ids():
+    ingredients, _ = load_ingredients()
+    recipes = load_recipes(ingredients)
+    assert len(recipes) >= 25
+    assert len({r.id for r in recipes}) == len(recipes)
+
+
+def test_every_real_recipe_ingredient_converts():
+    ref = load_reference_data()
+    for r in ref.recipes:
+        for part in r.ingredients:
+            assert ref.to_base(part.name, part.qty, part.unit) is not None, (r.id, part.name)
+
+
+def test_load_reference_data_returns_everything():
+    ref = load_reference_data()
+    assert isinstance(ref, ReferenceData)
+    assert ref.recipes and ref.ingredients and ref.nutrition and ref.substitutes and ref.restrictions
+
+
+def test_loads_flags_and_defaults(tmp_path, two_ingredients):
+    path = write(tmp_path, {"recipes": [recipe(ingredients=[
+        {"name": "butter", "qty": 2, "unit": "g", "substitutable": True},
+        {"name": "olive oil", "qty": 1, "unit": "tbsp", "required": False}])]}, "r.json")
+    (r,) = load_recipes(two_ingredients, path)
+    assert r.ingredients[0].required and r.ingredients[0].substitutable
+    assert not r.ingredients[1].required and not r.ingredients[1].substitutable
+
+
+@pytest.mark.parametrize("bad, message", [
+    ([recipe("R001"), recipe("R001")], "more than once"),
+    ([recipe(ingredients=[{"name": "ghee", "qty": 1, "unit": "g"}])], "not in the Ingredient Dictionary"),
+    ([recipe(ingredients=[{"name": "butter", "qty": 1, "unit": "pinch"}])], "doesn't convert"),
+    ([recipe(ingredients=[{"name": "butter", "qty": 0, "unit": "g"}])], "above 0"),
+    ([recipe(ingredients=[{"name": "butter", "qty": 1, "unit": "g"},
+                          {"name": "butter", "qty": 2, "unit": "g"}])], "listed more than once"),
+    ([recipe(cook_time_min=0)], "cook_time_min"),
+    ([recipe(ingredients=[{"name": "butter", "qty": 1, "unit": "g", "required": False}])], "at least one required"),
+    ([{"id": "R001", "name": "No Ingredients"}], "needs id, name"),
+])
+def test_bad_recipes_raise(tmp_path, two_ingredients, bad, message):
+    path = write(tmp_path, {"recipes": bad}, "r.json")
+    with pytest.raises(DataError, match=message):
+        load_recipes(two_ingredients, path)

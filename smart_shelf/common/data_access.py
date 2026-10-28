@@ -10,7 +10,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from smart_shelf.common.models import Ingredient, Nutrition, Substitute
+from smart_shelf.common.models import (
+    Ingredient, Nutrition, Recipe, RecipeIngredient, ReferenceData, Substitute,
+)
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
@@ -144,3 +146,61 @@ def load_substitutions_nutrition(ingredients: dict[str, Ingredient], path: Path 
         if subs:
             substitutes[name] = tuple(subs)
     return substitutes, nutrition
+
+
+def load_recipes(ingredients: dict[str, Ingredient], path: Path | None = None) -> list[Recipe]:
+    """Load the Recipe Database, checking every ingredient against the Ingredient Dictionary."""
+    path = Path(path) if path else DATA_DIR / "recipes.json"
+    raw = _read_json(path)
+    if not isinstance(raw, dict) or not isinstance(raw.get("recipes"), list):
+        raise DataError(f"{path.name} needs a 'recipes' list")
+
+    recipes: list[Recipe] = []
+    seen_ids: set[str] = set()
+    for n, entry in enumerate(raw["recipes"]):
+        try:
+            rid, name, cuisine = entry["id"], entry["name"], entry["cuisine"]
+            minutes, items = entry["cook_time_min"], entry["ingredients"]
+        except (KeyError, TypeError):
+            raise DataError(f"{path.name}, recipe #{n + 1}: needs id, name, cuisine, "
+                            "cook_time_min, and ingredients") from None
+        where = f"{path.name}, {rid} ({name})"
+        if rid in seen_ids:
+            raise DataError(f"{where}: recipe id is used more than once")
+        seen_ids.add(rid)
+        if not isinstance(minutes, int) or minutes <= 0:
+            raise DataError(f"{where}: cook_time_min must be a whole number above 0")
+
+        parts: list[RecipeIngredient] = []
+        for item in items:
+            ing_name, qty, unit = item.get("name"), item.get("qty"), item.get("unit")
+            ing = ingredients.get(ing_name)
+            if ing is None:
+                raise DataError(f"{where}: {ing_name!r} is not in the Ingredient Dictionary")
+            if any(p.name == ing_name for p in parts):
+                raise DataError(f"{where}: {ing_name!r} is listed more than once")
+            if not isinstance(qty, (int, float)) or qty <= 0:
+                raise DataError(f"{where}: quantity for {ing_name!r} must be above 0")
+            if unit != ing.base_unit and unit not in ing.unit_conversions:
+                raise DataError(f"{where}: unit {unit!r} doesn't convert for {ing_name!r}")
+            parts.append(RecipeIngredient(ing_name, float(qty), unit,
+                                          bool(item.get("required", True)),
+                                          bool(item.get("substitutable", False))))
+        if not any(p.required for p in parts):
+            raise DataError(f"{where}: needs at least one required ingredient")
+        recipes.append(Recipe(rid, name, cuisine, minutes, tuple(parts)))
+    return recipes
+
+
+def load_reference_data(data_dir: Path | None = None) -> ReferenceData:
+    """Load every read-only data store into one ReferenceData object.
+
+    This is the one call both architectures use to get their data.
+    """
+    data_dir = Path(data_dir) if data_dir else DATA_DIR
+    ingredients, restrictions = load_ingredients(data_dir / "ingredients.json")
+    substitutes, nutrition = load_substitutions_nutrition(
+        ingredients, data_dir / "substitutions_nutrition.json")
+    recipes = load_recipes(ingredients, data_dir / "recipes.json")
+    return ReferenceData(ingredients=ingredients, recipes=recipes, substitutes=substitutes,
+                         nutrition=nutrition, restrictions=restrictions)

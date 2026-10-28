@@ -1,0 +1,223 @@
+{
+  "_about": "Recipe Database: every recipe Smart-Shelf can recommend, with its cuisine, cook time, and ingredients. Each ingredient name must exist in ingredients.json and use a unit that converts for it. Ingredients are required unless marked \"required\": false, and only ones marked \"substitutable\": true can be swapped. Run scripts/check_data.py after editing.",
+  "recipes": [
+    {"id": "R001", "name": "Pancakes", "cuisine": "American", "cook_time_min": 20, "ingredients": [
+      {"name": "flour", "qty": 1.5, "unit": "cup"},
+      {"name": "milk", "qty": 1.25, "unit": "cup", "substitutable": true},
+      {"name": "egg", "qty": 1, "unit": "count"},
+      {"name": "butter", "qty": 3, "unit": "tbsp", "substitutable": true},
+      {"name": "sugar", "qty": 1, "unit": "tbsp", "substitutable": true},
+      {"name": "baking powder", "qty": 3.5, "unit": "tsp"},
+      {"name": "salt", "qty": 0.25, "unit": "tsp", "required": false}
+    ]},
+    {"id": "R002", "name": "Scrambled Eggs", "cuisine": "American", "cook_time_min": 10, "ingredients": [
+      {"name": "egg", "qty": 3, "unit": "count"},
+      {"name": "milk", "qty": 2, "unit": "tbsp", "substitutable": true},
+      {"name": "butter", "qty": 1, "unit": "tbsp", "substitutable": true},
+      {"name": "salt", "qty": 0.25, "unit": "tsp", "required": false},
+      {"name": "black pepper", "qty": 0.25, "unit": "tsp", "required": false}
+    ]},
+    {"id": "R003", "name": "Spaghetti Marinara", "cuisine": "Italian", "cook_time_min": 25, "ingredients": [
+      {"name": "pasta", "qty": 200, "unit": "g"},
+      {"name": "canned tomatoes", "qty": 1, "unit": "can", "substitutable": true},
+      {"name": "garlic", "qty": 3, "unit": "clove"},
+      {"name": "onion", "qty": 1, "unit": "count"},
+      {"name": "olive oil", "qty": 2, "unit": "tbsp", "substitutable": true},
+      {"name": "basil", "qty": 5, "unit": "g", "required": false},
+      {"name": "salt", "qty": 0.5, "unit": "tsp", "required": false}
+    ]},
+    {"id": "R004", "name": "Garlic Butter Pasta", "cuisine": "Italian", "cook_time_min": 15, "ingredients": [
+      {"name": "pasta", "qty": 200, "unit": "g"},
+      {"name": "butter", "qty": 4, "unit": "tbsp", "substitutable": true},
+      {"name": "garlic", "qty": 4, "unit": "clove"},
+      {"name": "parmesan", "qty": 0.5, "unit": "cup"},
+      {"name": "parsley", "qty": 2, "unit": "tbsp", "required": false},
+      {"name": "black pepper", "qty": 0.25, "unit": "tsp", "required": false}
+    ]},
+    {"id": "R005", "name": "Chicken Stir-Fry", "cuisine": "Chinese", "cook_time_min": 25, "ingredients": [
+      {"name": "chicken breast", "qty": 400, "unit": "g", "substitutable": true},
+      {"name": "broccoli", "qty": 2, "unit": "cup"},
+      {"name": "bell pepper", "qty": 1, "unit": "count"},
+      {"name": "soy sauce", "qty": 3, "unit": "tbsp"},
+      {"name": "garlic", "qty": 2, "unit": "clove"},
+      {"name": "ginger", "qty": 1, "unit": "tbsp"},
+      {"name": "vegetable oil", "qty": 2, "unit": "tbsp", "substitutable": true},
+      {"name": "rice", "qty": 1, "unit": "cup"},
+      {"name": "cornstarch", "qty": 1, "unit": "tbsp", "required": false, "substitutable": true}
+    ]},
+    {"id": "R006", "name": "Vegetable Fried Rice", "cuisine": "Chinese", "cook_time_min": 20, "ingredients": [
+      {"name": "rice", "qty": 1.5, "unit": "cup"},
+      {"name": "egg", "qty": 2, "unit": "count"},
+      {"name": "carrot", "qty": 1, "unit": "count"},
+      {"name": "green onion", "qty": 3, "unit": "count", "substitutable": true},
+      {"name": "soy sauce", "qty": 2, "unit": "tbsp"},
+      {"name": "vegetable oil", "qty": 2, "unit": "tbsp", "substitutable": true},
+      {"name": "garlic", "qty": 2, "unit": "clove"}
+    ]},
+    {"id": "R007", "name": "Black Bean Tacos", "cuisine": "Mexican", "cook_time_min": 20, "ingredients": [
+      {"name": "tortilla", "qty": 6, "unit": "count"},
+      {"name": "black beans", "qty": 1, "unit": "can", "substitutable": true},
+      {"name": "onion", "qty": 1, "unit": "count"},
+      {"name": "cumin", "qty": 1, "unit": "tsp"},
+      {"name": "chili powder", "qty": 1, "unit": "tsp"},
+      {"name": "avocado", "qty": 1, "unit": "count", "required": false},
+      {"name": "lime", "qty": 1, "unit": "count", "required": false, "substitutable": true},
+      {"name": "cheddar cheese", "qty": 0.5, "unit": "cup", "required": false, "substitutable": true}
+    ]},
+    {"id": "R008", "name": "Chicken Quesadillas", "cuisine": "Mexican", "cook_time_min": 20, "ingredients": [
+      {"name": "tortilla", "qty": 4, "unit": "count"},
+      {"name": "chicken breast", "qty": 300, "unit": "g", "substitutable": true},
+      {"name": "cheddar cheese", "qty": 1, "unit": "cup", "substitutable": true},
+      {"name": "bell pepper", "qty": 1, "unit": "count"},
+      {"name": "onion", "qty": 1, "unit": "count", "required": false},
+      {"name": "vegetable oil", "qty": 1, "unit": "tbsp", "substitutable": true}
+    ]},
+    {"id": "R009", "name": "Shakshuka", "cuisine": "Middle Eastern", "cook_time_min": 30, "ingredients": [
+      {"name": "egg", "qty": 4, "unit": "count"},
+      {"name": "canned tomatoes", "qty": 1, "unit": "can", "substitutable": true},
+      {"name": "onion", "qty": 1, "unit": "count"},
+      {"name": "bell pepper", "qty": 1, "unit": "count"},
+      {"name": "garlic", "qty": 3, "unit": "clove"},
+      {"name": "cumin", "qty": 1, "unit": "tsp"},
+      {"name": "olive oil", "qty": 2, "unit": "tbsp", "substitutable": true},
+      {"name": "parsley", "qty": 2, "unit": "tbsp", "required": false}
+    ]},
+    {"id": "R010", "name": "Spinach Omelette", "cuisine": "French", "cook_time_min": 15, "ingredients": [
+      {"name": "egg", "qty": 3, "unit": "count"},
+      {"name": "spinach", "qty": 1, "unit": "cup"},
+      {"name": "mozzarella", "qty": 0.25, "unit": "cup", "required": false, "substitutable": true},
+      {"name": "butter", "qty": 1, "unit": "tbsp", "substitutable": true},
+      {"name": "salt", "qty": 0.25, "unit": "tsp", "required": false}
+    ]},
+    {"id": "R011", "name": "Chickpea Curry", "cuisine": "Indian", "cook_time_min": 35, "ingredients": [
+      {"name": "chickpeas", "qty": 1, "unit": "can", "substitutable": true},
+      {"name": "coconut milk", "qty": 1, "unit": "can", "substitutable": true},
+      {"name": "canned tomatoes", "qty": 1, "unit": "can", "substitutable": true},
+      {"name": "onion", "qty": 1, "unit": "count"},
+      {"name": "garlic", "qty": 3, "unit": "clove"},
+      {"name": "ginger", "qty": 1, "unit": "tbsp"},
+      {"name": "cumin", "qty": 2, "unit": "tsp"},
+      {"name": "rice", "qty": 1, "unit": "cup", "required": false}
+    ]},
+    {"id": "R012", "name": "Lemon Garlic Salmon", "cuisine": "American", "cook_time_min": 25, "ingredients": [
+      {"name": "salmon", "qty": 2, "unit": "count"},
+      {"name": "lemon", "qty": 1, "unit": "count", "substitutable": true},
+      {"name": "olive oil", "qty": 1, "unit": "tbsp", "substitutable": true},
+      {"name": "garlic", "qty": 2, "unit": "clove"},
+      {"name": "parsley", "qty": 1, "unit": "tbsp", "required": false},
+      {"name": "salt", "qty": 0.25, "unit": "tsp", "required": false}
+    ]},
+    {"id": "R013", "name": "Garlic Shrimp and Rice", "cuisine": "Spanish", "cook_time_min": 25, "ingredients": [
+      {"name": "shrimp", "qty": 300, "unit": "g"},
+      {"name": "rice", "qty": 1, "unit": "cup"},
+      {"name": "garlic", "qty": 4, "unit": "clove"},
+      {"name": "butter", "qty": 2, "unit": "tbsp", "substitutable": true},
+      {"name": "lemon", "qty": 1, "unit": "count", "required": false, "substitutable": true},
+      {"name": "parsley", "qty": 2, "unit": "tbsp", "required": false}
+    ]},
+    {"id": "R014", "name": "Beef Tacos", "cuisine": "Mexican", "cook_time_min": 25, "ingredients": [
+      {"name": "ground beef", "qty": 1, "unit": "lb"},
+      {"name": "tortilla", "qty": 8, "unit": "count"},
+      {"name": "onion", "qty": 1, "unit": "count"},
+      {"name": "chili powder", "qty": 2, "unit": "tsp"},
+      {"name": "cumin", "qty": 1, "unit": "tsp"},
+      {"name": "lettuce", "qty": 1, "unit": "cup", "required": false},
+      {"name": "tomato", "qty": 1, "unit": "count", "required": false, "substitutable": true},
+      {"name": "cheddar cheese", "qty": 1, "unit": "cup", "required": false, "substitutable": true}
+    ]},
+    {"id": "R015", "name": "Spaghetti Bolognese", "cuisine": "Italian", "cook_time_min": 45, "ingredients": [
+      {"name": "pasta", "qty": 300, "unit": "g"},
+      {"name": "ground beef", "qty": 1, "unit": "lb"},
+      {"name": "canned tomatoes", "qty": 1, "unit": "can", "substitutable": true},
+      {"name": "onion", "qty": 1, "unit": "count"},
+      {"name": "carrot", "qty": 1, "unit": "count"},
+      {"name": "garlic", "qty": 3, "unit": "clove"},
+      {"name": "olive oil", "qty": 2, "unit": "tbsp", "substitutable": true},
+      {"name": "parmesan", "qty": 0.25, "unit": "cup", "required": false}
+    ]},
+    {"id": "R016", "name": "Grilled Cheese", "cuisine": "American", "cook_time_min": 10, "ingredients": [
+      {"name": "bread", "qty": 2, "unit": "slice"},
+      {"name": "cheddar cheese", "qty": 2, "unit": "oz", "substitutable": true},
+      {"name": "butter", "qty": 1, "unit": "tbsp", "substitutable": true}
+    ]},
+    {"id": "R017", "name": "Peanut Butter Banana Toast", "cuisine": "American", "cook_time_min": 5, "ingredients": [
+      {"name": "bread", "qty": 2, "unit": "slice"},
+      {"name": "peanut butter", "qty": 2, "unit": "tbsp"},
+      {"name": "banana", "qty": 1, "unit": "count"},
+      {"name": "honey", "qty": 1, "unit": "tsp", "required": false, "substitutable": true}
+    ]},
+    {"id": "R018", "name": "Overnight Oats", "cuisine": "American", "cook_time_min": 5, "ingredients": [
+      {"name": "oats", "qty": 0.5, "unit": "cup"},
+      {"name": "milk", "qty": 0.5, "unit": "cup", "substitutable": true},
+      {"name": "yogurt", "qty": 0.25, "unit": "cup"},
+      {"name": "honey", "qty": 1, "unit": "tbsp", "substitutable": true},
+      {"name": "banana", "qty": 1, "unit": "count", "required": false},
+      {"name": "cinnamon", "qty": 0.5, "unit": "tsp", "required": false}
+    ]},
+    {"id": "R019", "name": "Tomato Basil Salad", "cuisine": "Italian", "cook_time_min": 10, "ingredients": [
+      {"name": "tomato", "qty": 3, "unit": "count", "substitutable": true},
+      {"name": "mozzarella", "qty": 4, "unit": "oz", "substitutable": true},
+      {"name": "basil", "qty": 10, "unit": "g"},
+      {"name": "olive oil", "qty": 2, "unit": "tbsp", "substitutable": true},
+      {"name": "vinegar", "qty": 1, "unit": "tbsp", "required": false, "substitutable": true},
+      {"name": "salt", "qty": 0.25, "unit": "tsp", "required": false}
+    ]},
+    {"id": "R020", "name": "Garden Salad", "cuisine": "American", "cook_time_min": 10, "ingredients": [
+      {"name": "lettuce", "qty": 3, "unit": "cup"},
+      {"name": "cucumber", "qty": 1, "unit": "count"},
+      {"name": "tomato", "qty": 2, "unit": "count", "substitutable": true},
+      {"name": "carrot", "qty": 1, "unit": "count"},
+      {"name": "olive oil", "qty": 2, "unit": "tbsp", "substitutable": true},
+      {"name": "vinegar", "qty": 1, "unit": "tbsp", "substitutable": true},
+      {"name": "salt", "qty": 0.25, "unit": "tsp", "required": false}
+    ]},
+    {"id": "R021", "name": "Tofu Stir-Fry", "cuisine": "Chinese", "cook_time_min": 25, "ingredients": [
+      {"name": "tofu", "qty": 1, "unit": "count"},
+      {"name": "broccoli", "qty": 2, "unit": "cup"},
+      {"name": "bell pepper", "qty": 1, "unit": "count"},
+      {"name": "soy sauce", "qty": 3, "unit": "tbsp"},
+      {"name": "garlic", "qty": 2, "unit": "clove"},
+      {"name": "ginger", "qty": 1, "unit": "tbsp"},
+      {"name": "sesame oil", "qty": 1, "unit": "tbsp"},
+      {"name": "rice", "qty": 1, "unit": "cup"}
+    ]},
+    {"id": "R022", "name": "Mushroom Risotto", "cuisine": "Italian", "cook_time_min": 40, "ingredients": [
+      {"name": "rice", "qty": 1, "unit": "cup"},
+      {"name": "mushrooms", "qty": 2, "unit": "cup"},
+      {"name": "vegetable broth", "qty": 4, "unit": "cup", "substitutable": true},
+      {"name": "onion", "qty": 1, "unit": "count"},
+      {"name": "garlic", "qty": 2, "unit": "clove"},
+      {"name": "butter", "qty": 2, "unit": "tbsp", "substitutable": true},
+      {"name": "parmesan", "qty": 0.5, "unit": "cup", "required": false}
+    ]},
+    {"id": "R023", "name": "Loaded Baked Potatoes", "cuisine": "American", "cook_time_min": 60, "ingredients": [
+      {"name": "potato", "qty": 4, "unit": "count"},
+      {"name": "butter", "qty": 4, "unit": "tbsp", "substitutable": true},
+      {"name": "cheddar cheese", "qty": 1, "unit": "cup", "substitutable": true},
+      {"name": "bacon", "qty": 4, "unit": "slice", "required": false},
+      {"name": "green onion", "qty": 2, "unit": "count", "required": false, "substitutable": true},
+      {"name": "yogurt", "qty": 0.5, "unit": "cup", "required": false}
+    ]},
+    {"id": "R024", "name": "Banana Bread", "cuisine": "American", "cook_time_min": 70, "ingredients": [
+      {"name": "flour", "qty": 2, "unit": "cup"},
+      {"name": "banana", "qty": 3, "unit": "count"},
+      {"name": "sugar", "qty": 0.75, "unit": "cup", "substitutable": true},
+      {"name": "egg", "qty": 2, "unit": "count"},
+      {"name": "butter", "qty": 0.5, "unit": "cup", "substitutable": true},
+      {"name": "baking soda", "qty": 1, "unit": "tsp", "substitutable": true},
+      {"name": "salt", "qty": 0.25, "unit": "tsp", "required": false},
+      {"name": "vanilla extract", "qty": 1, "unit": "tsp", "required": false},
+      {"name": "cinnamon", "qty": 1, "unit": "tsp", "required": false}
+    ]},
+    {"id": "R025", "name": "Chicken Noodle Soup", "cuisine": "American", "cook_time_min": 45, "ingredients": [
+      {"name": "chicken breast", "qty": 300, "unit": "g", "substitutable": true},
+      {"name": "chicken broth", "qty": 6, "unit": "cup", "substitutable": true},
+      {"name": "carrot", "qty": 2, "unit": "count"},
+      {"name": "onion", "qty": 1, "unit": "count"},
+      {"name": "pasta", "qty": 100, "unit": "g"},
+      {"name": "garlic", "qty": 2, "unit": "clove"},
+      {"name": "parsley", "qty": 2, "unit": "tbsp", "required": false},
+      {"name": "salt", "qty": 0.5, "unit": "tsp", "required": false}
+    ]}
+  ]
+}
