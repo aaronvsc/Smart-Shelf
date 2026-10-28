@@ -18,6 +18,7 @@ def data_copy(tmp_path):
     """A copy of the real data folder that a test can safely edit."""
     for name in ("ingredients.json", "substitutions_nutrition.json", "recipes.json"):
         shutil.copy(DATA_DIR / name, tmp_path / name)
+    shutil.copytree(DATA_DIR / "profiles", tmp_path / "profiles")
     return tmp_path
 
 
@@ -68,3 +69,13 @@ def test_broken_data_is_reported_not_raised(data_copy):
          lambda d: d["recipes"][0]["ingredients"].append({"name": "unicorn", "qty": 1, "unit": "g"}))
     errors, _, _ = run_checks(data_copy)
     assert len(errors) == 1 and "unicorn" in errors[0]
+
+
+def test_profile_with_unknown_rule_or_recipe_is_an_error(data_copy):
+    def break_profile(d):
+        d["allergies"].append("glitter")
+        d["history"].append({"recipe_id": "R999", "selected_at": "2026-10-25"})
+    edit(data_copy / "profiles" / "demo.json", break_profile)
+    errors, _, _ = run_checks(data_copy)
+    assert any("'glitter'" in e for e in errors)
+    assert any("'R999'" in e for e in errors)

@@ -1,0 +1,10 @@
+{
+  "_about": "Sample user profile for testing: one private file per user with their diet restrictions, allergies, and past recipe picks. The file name must match user_id.",
+  "user_id": "demo",
+  "restrictions": ["vegetarian"],
+  "allergies": ["peanut"],
+  "history": [
+    {"recipe_id": "R006", "selected_at": "2026-10-20"},
+    {"recipe_id": "R003", "selected_at": "2026-10-24"}
+  ]
+}

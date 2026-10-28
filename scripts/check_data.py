@@ -15,7 +15,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from smart_shelf.common.data_access import DATA_DIR, DataError, load_reference_data  # noqa: E402
+from smart_shelf.common.data_access import (  # noqa: E402
+    DATA_DIR, DataError, load_profile, load_reference_data,
+)
 
 RECIPE_TARGET = 200
 
@@ -53,10 +55,26 @@ def run_checks(data_dir: Path | None = None) -> tuple[list[str], list[str], list
         for tag in sorted(tags - tags_in_use):
             warnings.append(f"restriction {rule!r} forbids tag {tag!r}, but no ingredient has it")
 
+    recipe_ids = {r.id for r in ref.recipes}
+    profile_files = sorted(((data_dir or DATA_DIR) / "profiles").glob("*.json"))
+    for path in profile_files:
+        try:
+            profile = load_profile(path.stem, path.parent)
+        except DataError as e:
+            errors.append(str(e))
+            continue
+        for rule in profile.all_restrictions:
+            if rule not in ref.restrictions:
+                errors.append(f"profile {profile.user_id!r}: unknown restriction or allergy {rule!r}")
+        for entry in profile.history:
+            if entry.recipe_id not in recipe_ids:
+                errors.append(f"profile {profile.user_id!r}: history has unknown recipe {entry.recipe_id!r}")
+
     cuisines = Counter(r.cuisine for r in ref.recipes)
     summary = [
         f"{len(ref.recipes)} recipes (target ~{RECIPE_TARGET}), "
-        f"{len(ref.ingredients)} ingredients, {len(ref.restrictions)} restriction rules",
+        f"{len(ref.ingredients)} ingredients, {len(ref.restrictions)} restriction rules, "
+        f"{len(profile_files)} profile(s)",
         "cuisines: " + ", ".join(f"{c} {n}" for c, n in cuisines.most_common()),
     ]
     return errors, warnings, summary

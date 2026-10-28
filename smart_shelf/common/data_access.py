@@ -3,18 +3,25 @@
 Both architectures read their data through this file instead of opening the
 JSON files themselves, so they always get the same data in the same shape.
 Bad data raises a DataError with a clear message instead of failing later in
-some filter or knowledge source.
+some filter or knowledge source. It also reads and saves user profiles, one
+private file per user in data/profiles/.
 """
 from __future__ import annotations
 
 import json
+import os
+import re
+import tempfile
+from datetime import date
 from pathlib import Path
 
 from smart_shelf.common.models import (
-    Ingredient, Nutrition, Recipe, RecipeIngredient, ReferenceData, Substitute,
+    Ingredient, Nutrition, Recipe, RecipeIngredient, ReferenceData, SelectionEntry,
+    Substitute, UserProfile,
 )
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+PROFILES_DIR = DATA_DIR / "profiles"
 
 BASE_UNITS = ("g", "ml", "count")
 
@@ -30,6 +37,11 @@ STANDARD_CONVERSIONS = {
 
 class DataError(Exception):
     """A data file is missing, unreadable, or has invalid content."""
+
+
+class ProfileError(DataError):
+    """A user profile can't be loaded or saved. The app must stop instead of
+    running without the user's restrictions (edge case in Section 1.4.1)."""
 
 
 def _read_json(path: Path):
@@ -204,3 +216,69 @@ def load_reference_data(data_dir: Path | None = None) -> ReferenceData:
     recipes = load_recipes(ingredients, data_dir / "recipes.json")
     return ReferenceData(ingredients=ingredients, recipes=recipes, substitutes=substitutes,
                          nutrition=nutrition, restrictions=restrictions)
+
+
+# ----------------------------------------------------------- user profiles
+
+USER_ID_PATTERN = re.compile(r"^[a-z0-9_-]{1,40}$")
+
+
+def _profile_path(user_id: str, profiles_dir: Path | None) -> Path:
+    """The one file for this user. The ID is checked so it can only ever point
+    to that user's own file inside the profiles folder (Privacy)."""
+    if not isinstance(user_id, str) or not USER_ID_PATTERN.match(user_id):
+        raise ProfileError(f"Invalid user id {user_id!r}: use 1-40 lowercase letters, "
+                           "digits, '_' or '-'")
+    return Path(profiles_dir or PROFILES_DIR) / f"{user_id}.json"
+
+
+def load_profile(user_id: str, profiles_dir: Path | None = None) -> UserProfile:
+    """Load one user's profile, or raise ProfileError if it's missing or invalid."""
+    path = _profile_path(user_id, profiles_dir)
+    try:
+        raw = _read_json(path)
+    except DataError as e:
+        raise ProfileError(f"Profile for {user_id!r} can't be loaded: {e}") from None
+    try:
+        if raw["user_id"] != user_id:
+            raise ProfileError(f"{path.name} belongs to {raw['user_id']!r}, not {user_id!r}")
+        restrictions = tuple(str(r) for r in raw.get("restrictions", []))
+        allergies = tuple(str(a) for a in raw.get("allergies", []))
+        history = tuple(SelectionEntry(h["recipe_id"], date.fromisoformat(h["selected_at"]))
+                        for h in raw.get("history", []))
+    except ProfileError:
+        raise
+    except (KeyError, TypeError, ValueError) as e:
+        raise ProfileError(f"Profile for {user_id!r} has invalid content: {e}") from None
+    return UserProfile(user_id, restrictions, allergies, history)
+
+
+def save_profile(profile: UserProfile, profiles_dir: Path | None = None) -> None:
+    """Write a profile to its file. Writes to a temp file first, so a crash
+    halfway through can't leave a broken profile behind."""
+    path = _profile_path(profile.user_id, profiles_dir)
+    data = {
+        "user_id": profile.user_id,
+        "restrictions": list(profile.restrictions),
+        "allergies": list(profile.allergies),
+        "history": [{"recipe_id": h.recipe_id, "selected_at": h.selected_at.isoformat()}
+                    for h in profile.history],
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.replace(tmp, path)
+
+
+def save_selection(user_id: str, recipe_ids: list[str], on: date | None = None,
+                   profiles_dir: Path | None = None) -> UserProfile:
+    """Add the recipes a user picked to their history (Step 5 of the main flow)
+    and return the updated profile."""
+    profile = load_profile(user_id, profiles_dir)
+    picked = tuple(SelectionEntry(rid, on or date.today()) for rid in recipe_ids)
+    updated = UserProfile(profile.user_id, profile.restrictions, profile.allergies,
+                          profile.history + picked)
+    save_profile(updated, profiles_dir)
+    return updated
