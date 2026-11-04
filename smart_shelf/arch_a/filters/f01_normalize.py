@@ -7,7 +7,7 @@ from datetime import date
 
 from smart_shelf.arch_a.config import TYPO_CUTOFF
 from smart_shelf.arch_a.filter_base import Filter
-from smart_shelf.arch_a.inputs import Ingredient, PantryItem, ReferenceData
+from smart_shelf.common.models import Ingredient, PantryItem, ReferenceData
 from smart_shelf.arch_a.records import NormalizedPantry, UnrecognizedItem
 
 UNIT_ALIASES = {

@@ -9,7 +9,7 @@ from datetime import date
 
 import pytest
 
-from smart_shelf.arch_a.inputs import (
+from smart_shelf.common.models import (
     Ingredient, Nutrition, PantryItem, Recipe, RecipeIngredient, ReferenceData,
     SelectionEntry, Substitute, UserProfile,
 )

@@ -1,6 +1,6 @@
 """Filter 6 - Nutrition: calories and macros from per-ingredient data, reflecting substitutes."""
 from smart_shelf.arch_a.filter_base import Filter
-from smart_shelf.arch_a.inputs import Nutrition
+from smart_shelf.common.models import Nutrition
 from smart_shelf.arch_a.records import RecipeRecord
 
 
