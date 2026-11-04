@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
-from smart_shelf.arch_a.inputs import Nutrition, PantryItem, Recipe, UserProfile
+from smart_shelf.common.models import Nutrition, PantryItem, Recipe, UserProfile
 
 
 class _EndOfStream:

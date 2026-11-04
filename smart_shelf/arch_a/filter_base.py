@@ -4,7 +4,7 @@ from __future__ import annotations
 import threading
 from typing import Iterable
 
-from smart_shelf.arch_a.inputs import ReferenceData
+from smart_shelf.common.models import ReferenceData
 from smart_shelf.arch_a.pipe import Pipe
 from smart_shelf.arch_a.records import END, ExclusionSummary, RunContext
 

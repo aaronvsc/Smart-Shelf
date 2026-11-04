@@ -10,7 +10,7 @@ from smart_shelf.arch_a.filters import (
     DietaryFilter, FreshnessFilter, GapsFilter, MatchFilter, NormalizeFilter,
     NutritionFilter, PreferenceFilter, RankFilter, ShoppingListFilter, SubstituteFilter,
 )
-from smart_shelf.arch_a.inputs import ReferenceData, UserProfile
+from smart_shelf.common.models import ReferenceData, UserProfile
 from smart_shelf.arch_a.pipe import Pipe
 from smart_shelf.arch_a.records import (
     END, ExclusionSummary, NormalizedPantry, PipelineResult, RecipeRecord, RunContext,

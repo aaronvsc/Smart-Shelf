@@ -6,7 +6,7 @@ import pytest
 
 from smart_shelf.arch_a.filter_base import Filter
 from smart_shelf.arch_a.filters import MatchFilter
-from smart_shelf.arch_a.inputs import (
+from smart_shelf.common.models import (
     Ingredient, Nutrition, Recipe, RecipeIngredient, ReferenceData, Substitute, UserProfile,
 )
 from smart_shelf.arch_a.pipeline import (

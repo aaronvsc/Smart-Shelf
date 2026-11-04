@@ -1,7 +1,7 @@
 """Filter 5 - Substitute: cover missing required ingredients with compliant swaps the user has enough of."""
 from smart_shelf.arch_a.config import EPSILON
 from smart_shelf.arch_a.filter_base import Filter
-from smart_shelf.arch_a.inputs import Substitute
+from smart_shelf.common.models import Substitute
 from smart_shelf.arch_a.records import Gap, RecipeRecord
 
 
