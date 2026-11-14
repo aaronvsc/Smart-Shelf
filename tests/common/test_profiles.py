@@ -27,8 +27,8 @@ def profiles(tmp_path):
 
 def test_real_sample_profile_loads():
     profile = load_profile("demo")
-    assert profile.restrictions == ("vegetarian",)
-    assert profile.allergies == ("peanut",)
+    assert profile.restrictions == ()
+    assert profile.allergies == ()
 
 
 def test_load_profile(profiles):

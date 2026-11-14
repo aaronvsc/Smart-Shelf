@@ -48,6 +48,8 @@ button[kind="primary"] p {color: #0D1117; font-weight: 600;}
 .label {font-size: 0.72rem; letter-spacing: 0.12em; color: #8B949E; font-weight: 600;
         text-transform: uppercase; margin-bottom: 2px;}
 .muted {color: #8B949E;}
+.score {font-size: 1.6rem; font-weight: 700; line-height: 1; text-align: right; color: #3B82F6;}
+.score-label {font-size: 0.7rem; letter-spacing: 0.14em; color: #8B949E; text-align: right;}
 .steps div {padding: 6px 0 6px 12px; border-left: 2px solid #30363D; color: #6E7681;}
 .steps div.done {color: #8B949E;}
 .steps div.current {border-left-color: #3B82F6; color: #F0F6FC; font-weight: 600;}
@@ -76,7 +78,7 @@ def split_rules(ref):
 
 def reset():
     """Start over: a new architecture or user means a fresh backend and no old results."""
-    for key in ("backend", "result", "problem"):
+    for key in ("backend", "result", "problem", "shown"):
         st.session_state.pop(key, None)
     st.session_state.step = 1
 
@@ -194,6 +196,7 @@ def find_recipes(ref, profile, diets, allergies, rows):
     with st.spinner(f"Checking your pantry against {len(ref.recipes)} recipes"):
         result = backend.run(rows, profile)
     st.session_state.backend, st.session_state.result = backend, result
+    st.session_state.shown = PAGE_SIZE
     st.session_state.unrecognized = result.unrecognized
 
     if result.status == "empty_pantry":
@@ -205,14 +208,109 @@ def find_recipes(ref, profile, diets, allergies, rows):
     st.rerun()
 
 
-# ---------------------------------------------------------------- step 3 (placeholder)
+# ---------------------------------------------------------------- step 3
+
+PAGE_SIZE = 10
+
+
+def amount(qty, unit):
+    """50.0 g -> '50 g', 0.333 cup -> '0.33 cup'."""
+    return f"{round(qty, 2):g} {unit}"
+
+
+def show_more():
+    st.session_state.shown += PAGE_SIZE
+
+
+def recipe_card(rank, record):
+    recipe = record.recipe
+    # Score = how well the pantry covers the recipe + freshness boost + history boost.
+    match = record.score - record.freshness_boost - record.preference_boost
+    with st.container(border=True):
+        left, right = st.columns([0.8, 0.2])
+        with left:
+            st.markdown(f"**{rank}. {recipe.name}**")
+            html(f"<span class='muted'>{recipe.cook_time_min} min | {recipe.cuisine} | "
+                 f"{record.nutrition.kcal:.0f} kcal</span>")
+        with right:
+            html(f"<div class='score'>{match:.0%}</div><div class='score-label'>MATCH</div>")
+
+        on_hand, swapped, to_buy = st.columns(3)
+        with on_hand:
+            html("<div class='label'>On hand</div>")
+            st.markdown(", ".join(record.on_hand) or "None")
+        with swapped:
+            html("<div class='label'>Substitute</div>")
+            st.markdown("<br>".join(f"{use} for {need}" for need, use in record.substitutions.items())
+                        or "None", unsafe_allow_html=True)
+        with to_buy:
+            html("<div class='label'>To buy</div>")
+            st.markdown(", ".join(f"{gap.name} ({amount(gap.short_qty, gap.unit)})"
+                                  for gap in record.to_buy) or "Nothing")
+
+        with st.expander("Score breakdown"):
+            required = sum(item.required for item in recipe.ingredients)
+            optional = [gap.name for gap in record.missing if not gap.required]
+            lines = [
+                f"Pantry match: {match:.3f} ({len(record.on_hand)} on hand, "
+                f"{len(record.substitutions)} substituted, {len(record.to_buy)} to buy, "
+                f"out of {required} required ingredients; a substitute counts a little less)",
+                f"Freshness: +{record.freshness_boost:.3f} (uses food that expires soon)",
+                f"Your history: +{record.preference_boost:.3f} (like recipes you picked before)",
+                f"Total score: {record.score:.3f}",
+            ]
+            if optional:
+                lines.append("Optional, left out: " + ", ".join(optional))
+            st.markdown("\n".join(f"- {line}" for line in lines))
+
+
+def hidden_box(ref, result):
+    """Recipes the Dietary Check removed, with the rule each one breaks."""
+    excluded = result.exclusions.excluded if result.exclusions else {}
+    names = {recipe.id: recipe.name for recipe in ref.recipes}
+    with st.container(border=True):
+        html(f"<div class='label'>Hidden for your diet ({len(excluded)})</div>")
+        if not excluded:
+            html("<span class='muted'>None</span>")
+        rows = [f"{names[rid]} <span class='muted'>({', '.join(reasons)})</span>"
+                for rid, reasons in sorted(excluded.items(), key=lambda item: names[item[0]])]
+        for row in rows[:PAGE_SIZE]:
+            html(row)
+        if len(rows) > PAGE_SIZE:
+            with st.expander(f"{len(rows) - PAGE_SIZE} more"):
+                for row in rows[PAGE_SIZE:]:
+                    html(row)
+
 
 def screen_results(ref):
-    page_title("Recipes you can make")
     result = st.session_state.result
-    html(f"<span class='muted'>{len(result.ranked)} recipes ranked "
-         f"in {result.elapsed_s * 1000:.0f} ms</span>")
-    st.button("Back to pantry", on_click=go, args=(1,))
+    st.button("< Back to pantry", on_click=go, args=(1,))
+    page_title("Recipes you can make")
+    matched = result.exclusions.matched_count if result.exclusions else 0
+    hidden = len(result.exclusions.excluded) if result.exclusions else 0
+    html(f"<span class='muted'>{len(result.ranked)} recipes use your pantry | "
+         f"{hidden} hidden for your diet | ranked in {result.elapsed_s * 1000:.0f} ms</span>")
+    st.write("")
+
+    left, right = st.columns([0.68, 0.32], gap="large")
+    with left:
+        if result.status == "no_matches":
+            st.info("None of our recipes use what's in your pantry. Try adding a few staples "
+                    "like rice, pasta, eggs or onions.")
+        elif result.status == "all_excluded":
+            st.info(f"{matched} recipes use your pantry, but every one of them breaks your "
+                    "diet or allergies. They're listed on the right.")
+        st.session_state.setdefault("shown", PAGE_SIZE)
+        for rank, record in enumerate(result.ranked[:st.session_state.shown], start=1):
+            recipe_card(rank, record)
+        if len(result.ranked) > st.session_state.shown:
+            st.button(f"Show {PAGE_SIZE} more", on_click=show_more)
+    with right:
+        hidden_box(ref, result)
+        if result.unrecognized:
+            with st.container(border=True):
+                html("<div class='label'>Skipped pantry items</div>")
+                show_unrecognized(result.unrecognized)
 
 
 # ---------------------------------------------------------------- main

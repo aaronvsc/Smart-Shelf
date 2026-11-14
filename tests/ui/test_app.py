@@ -42,10 +42,10 @@ def test_sidebar_offers_both_architectures():
     assert app.sidebar.radio(key="architecture").options == list(BACKENDS)
 
 
-def test_demo_profile_restrictions_are_filled_in():
+def test_demo_profile_starts_with_no_restrictions():
     app = start()
-    assert app.multiselect(key="diets_demo").value == ["vegetarian"]
-    assert app.multiselect(key="allergies_demo").value == ["peanut"]
+    assert app.multiselect(key="diets_demo").value == []
+    assert app.multiselect(key="allergies_demo").value == []
 
 
 @pytest.mark.parametrize("architecture", list(BACKENDS))
@@ -73,3 +73,62 @@ def test_switching_architecture_clears_old_results():
     app.sidebar.radio(key="architecture").set_value("B: Blackboard").run()
     assert titles(app) == ["## Enter your pantry"]
     assert "result" not in app.session_state
+
+
+# ----------------------------------------------------------- step 3: results
+
+def results(architecture="A: Pipe-and-Filter", pantry=None):
+    app = start(architecture, pantry)
+    app.button[0].click().run()
+    assert not app.exception
+    return app
+
+
+def cards(app):
+    return [m.value for m in app.main.markdown if m.value.startswith("**")]
+
+
+@pytest.mark.parametrize("architecture", list(BACKENDS))
+def test_results_show_the_top_ten_cards(architecture):
+    app = results(architecture)
+    assert cards(app)[0] == "**1. Spaghetti Marinara**"
+    assert len(cards(app)) == 10
+    assert any("Hidden for your diet (" in m.value for m in app.main.markdown)
+
+
+def test_show_more_adds_ten_cards():
+    app = results()
+    next(b for b in app.button if b.label == "Show 10 more").click().run()
+    assert len(cards(app)) == 20
+
+
+def test_every_recipe_breaking_the_diet_explains_why():
+    # Run a vegetarian with only chicken directly, so the real demo profile isn't edited.
+    from smart_shelf.common.data_access import load_reference_data
+    from smart_shelf.common.models import UserProfile
+    result = BACKENDS["A: Pipe-and-Filter"](load_reference_data()).run(
+        [{"name": "chicken breast", "qty": 500, "unit": "g"}], UserProfile("test", ("vegetarian",)))
+    app = start()
+    app.session_state["result"] = result
+    app.session_state["step"] = 3
+    app.run()
+    assert not app.exception
+    assert cards(app) == []
+    assert any("breaks your diet" in i.value for i in app.info)
+    assert any("Hidden for your diet (" in m.value for m in app.main.markdown)
+
+
+def test_no_matches_explains_what_to_add():
+    from smart_shelf.arch_a.records import PipelineResult
+    app = start()
+    app.session_state["result"] = PipelineResult("no_matches")
+    app.session_state["step"] = 3
+    app.run()
+    assert not app.exception
+    assert any("None of our recipes" in i.value for i in app.info)
+
+
+def test_back_button_returns_to_pantry():
+    app = results()
+    next(b for b in app.button if b.label == "< Back to pantry").click().run()
+    assert titles(app) == ["## Enter your pantry"]
