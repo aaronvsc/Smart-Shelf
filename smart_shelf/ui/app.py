@@ -54,6 +54,7 @@ button[kind="primary"] p {color: #0D1117; font-weight: 600;}
 .score-label {font-size: 0.7rem; letter-spacing: 0.14em; color: #8B949E; text-align: right;}
 .steps div {padding: 6px 0 6px 12px; border-left: 2px solid #30363D; color: #6E7681;}
 .steps div.done {color: #8B949E;}
+.up {color: #3B82F6;} .down {color: #F0F6FC;}
 .steps div.current {border-left-color: #3B82F6; color: #F0F6FC; font-weight: 600;}
 </style>
 """
@@ -93,10 +94,17 @@ def split_rules(ref):
     return diets, allergies
 
 
+def clear_run():
+    """Forget the last search: its backend, results and substitute choices."""
+    for key in ("backend", "result", "problem", "shown", "rejected", "ranking_before"):
+        st.session_state.pop(key, None)
+    for key in [key for key in st.session_state if str(key).startswith("sub_")]:
+        del st.session_state[key]
+
+
 def reset():
     """Start over: a new architecture or user means a fresh backend and no old results."""
-    for key in ("backend", "result", "problem", "shown"):
-        st.session_state.pop(key, None)
+    clear_run()
     st.session_state.step = 1
 
 
@@ -212,6 +220,7 @@ def find_recipes(ref, profile, diets, allergies, rows):
     backend = BACKENDS[st.session_state.architecture](ref, saved_profiles_dir())
     with st.spinner(f"Checking your pantry against {len(ref.recipes)} recipes"):
         result = backend.run(rows, profile)
+    clear_run()
     st.session_state.backend, st.session_state.result = backend, result
     st.session_state.shown = PAGE_SIZE
     st.session_state.unrecognized = result.unrecognized
@@ -328,6 +337,92 @@ def screen_results(ref):
             with st.container(border=True):
                 html("<div class='label'>Skipped pantry items</div>")
                 show_unrecognized(result.unrecognized)
+        if result.ranked:
+            st.button("Review substitutes", type="primary", on_click=review_substitutes)
+
+
+# ---------------------------------------------------------------- step 4
+
+def review_substitutes():
+    """Remember the ranking as it was, so step 4 can show how each choice moves recipes."""
+    st.session_state.setdefault("ranking_before", [r.recipe.id for r in st.session_state.result.ranked])
+    st.session_state.setdefault("rejected", {})
+    go(4)
+
+
+def decide(recipe_id, substitute, needed):
+    """Send one Accept/Reject choice to the architecture and keep its new result."""
+    accepted = st.session_state[f"sub_{recipe_id}_{substitute}"] == "Accept"
+    try:
+        st.session_state.result = st.session_state.backend.decide_substitute(
+            recipe_id, substitute, accepted)
+    except ValueError as error:
+        st.session_state.problem = f"That choice couldn't be applied: {error}"
+        return
+    if accepted:
+        st.session_state.rejected.pop((recipe_id, substitute), None)
+    else:
+        st.session_state.rejected[(recipe_id, substitute)] = needed
+
+
+def substitute_choices(result):
+    """(recipe, needed ingredient, substitute) for the swaps in the recipes shown on step 3,
+    plus every swap the user rejected, so it can be accepted again."""
+    names = {record.recipe.id: record.recipe for record in result.ranked}
+    choices = [(record.recipe, needed, use)
+               for record in result.ranked[:st.session_state.get("shown", PAGE_SIZE)]
+               for needed, use in record.substitutions.items()]
+    for (recipe_id, use), needed in st.session_state.rejected.items():
+        if recipe_id in names:
+            choices.append((names[recipe_id], needed, use))
+    return choices
+
+
+def movement(rank, recipe_id):
+    before = st.session_state.ranking_before
+    if recipe_id not in before:
+        return "<span class='muted'>new</span>"
+    old = before.index(recipe_id) + 1
+    if rank < old:
+        return f"<span class='up'>up from #{old}</span>"
+    if rank > old:
+        return f"<span class='down'>down from #{old}</span>"
+    return "<span class='muted'>no change</span>"
+
+
+def screen_substitutes(ref):
+    result = st.session_state.result
+    st.button("< Back to results", on_click=go, args=(3,))
+    page_title("Review substitutes")
+    html("<span class='muted'>We only suggest swaps you have enough of that also fit "
+         "your diet. Reject one and we'll look for another swap or add the ingredient "
+         "to your shopping list.</span>")
+    st.write("")
+    if st.session_state.get("problem"):
+        st.error(st.session_state.pop("problem"))
+
+    left, right = st.columns([0.55, 0.45], gap="large")
+    with left:
+        choices = substitute_choices(result)
+        if not choices:
+            st.info("None of the recipes you're looking at need a substitute.")
+        for recipe, needed, use in sorted(choices, key=lambda c: (c[0].name, c[1])):
+            key = f"sub_{recipe.id}_{use}"
+            st.session_state.setdefault(
+                key, "Reject" if (recipe.id, use) in st.session_state.rejected else "Accept")
+            with st.container(border=True):
+                html(f"<div class='label'>{recipe.name}</div>")
+                st.markdown(f"Needs {needed}. Use **{use}** instead?")
+                st.radio("Your choice", ["Accept", "Reject"], key=key, horizontal=True,
+                         label_visibility="collapsed", on_change=decide,
+                         args=(recipe.id, use, needed))
+    with right:
+        with st.container(border=True):
+            html("<div class='label'>Updated rankings</div>")
+            for rank, record in enumerate(result.ranked[:st.session_state.get("shown", PAGE_SIZE)],
+                                          start=1):
+                html(f"{rank}. {record.recipe.name} <span class='muted'>| "
+                     f"{record.score:.2f} |</span> {movement(rank, record.recipe.id)}")
 
 
 # ---------------------------------------------------------------- main
@@ -342,7 +437,9 @@ def main():
     except DataError as error:
         st.error(f"The recipe data couldn't be loaded, so Smart-Shelf can't run: {error}")
         return
-    if st.session_state.step >= 3 and "result" in st.session_state:
+    if st.session_state.step == 4 and "result" in st.session_state:
+        screen_substitutes(ref)
+    elif st.session_state.step >= 3 and "result" in st.session_state:
         screen_results(ref)
     else:
         screen_pantry(ref)

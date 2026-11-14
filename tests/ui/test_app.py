@@ -145,3 +145,50 @@ def test_app_works_on_a_copy_of_the_sample_profiles(saved_profiles):
     assert not app.exception
     assert load_profile("demo", saved_profiles).restrictions == ("vegetarian",)
     assert (PROFILES_DIR / "demo.json").read_text() == sample
+
+
+# ----------------------------------------------------------- step 4: substitutes
+
+def substitutes(architecture):
+    app = results(architecture)
+    next(b for b in app.button if b.label == "Review substitutes").click().run()
+    assert not app.exception
+    return app
+
+
+def choice_keys(app):
+    return [r.key for r in app.main.radio]
+
+
+@pytest.mark.parametrize("architecture", list(BACKENDS))
+def test_review_lists_swaps_from_the_shown_recipes(architecture):
+    app = substitutes(architecture)
+    assert titles(app) == ["## Review substitutes"]
+    assert "sub_R003_tomato" in choice_keys(app)
+    assert all(r.value == "Accept" for r in app.main.radio)
+    assert any("Updated rankings" in m.value for m in app.main.markdown)
+
+
+@pytest.mark.parametrize("architecture", list(BACKENDS))
+def test_rejecting_a_swap_reranks_and_can_be_undone(architecture):
+    app = substitutes(architecture)
+    app.radio(key="sub_R003_tomato").set_value("Reject").run()
+    assert not app.exception
+    r003 = next(r for r in app.session_state["result"].ranked if r.recipe.id == "R003")
+    assert "canned tomatoes" not in r003.substitutions
+    assert app.radio(key="sub_R003_tomato").value == "Reject"        # still listed, to undo
+    assert any("down from #" in m.value for m in app.main.markdown)
+
+    app.radio(key="sub_R003_tomato").set_value("Accept").run()
+    r003 = next(r for r in app.session_state["result"].ranked if r.recipe.id == "R003")
+    assert r003.substitutions == {"canned tomatoes": "tomato"}
+
+
+def test_new_search_forgets_old_choices():
+    app = substitutes("A: Pipe-and-Filter")
+    app.radio(key="sub_R003_tomato").set_value("Reject").run()
+    next(b for b in app.button if b.label == "< Back to results").click().run()
+    next(b for b in app.button if b.label == "< Back to pantry").click().run()
+    app.button[0].click().run()
+    assert "rejected" not in app.session_state
+    assert not any(str(k).startswith("sub_") for k in app.session_state)
