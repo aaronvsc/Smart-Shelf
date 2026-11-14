@@ -1,0 +1,22 @@
+# Streamlit settings for the Smart-Shelf UI: the black/blue theme with square
+# corners from our wireframes. Streamlit reads this file when you start the app
+# from the Smart-Shelf folder.
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
+
+[theme]
+base = "dark"
+primaryColor = "#3B82F6"
+backgroundColor = "#0D1117"
+secondaryBackgroundColor = "#161B22"
+textColor = "#F0F6FC"
+borderColor = "#30363D"
+baseRadius = "none"
+
+[theme.sidebar]
+backgroundColor = "#010409"
+secondaryBackgroundColor = "#161B22"
