@@ -27,6 +27,10 @@ def start(architecture=None, pantry=None):
     return app
 
 
+def find_button(app):
+    return next(b for b in app.button if b.label == "Find recipes")
+
+
 def titles(app):
     return [m.value for m in app.main.markdown if m.value.startswith("## ")]
 
@@ -51,7 +55,7 @@ def test_demo_profile_starts_with_no_restrictions():
 @pytest.mark.parametrize("architecture", list(BACKENDS))
 def test_find_recipes_moves_to_results(architecture):
     app = start(architecture)
-    app.button[0].click().run()
+    find_button(app).click().run()
     assert not app.exception
     assert titles(app) == ["## Recipes you can make"]
     assert app.session_state["result"].status == "ok"
@@ -61,18 +65,18 @@ def test_pantry_check_blocks_search_until_rows_are_fixed():
     app = start(pantry=[("eggs", 6, "count", None), ("carrots", None, None, None)])
     assert any("1 of 2 items ready" in m.value for m in app.main.markdown)
     assert [w.value for w in app.warning] == ["carrots: add a quantity above 0."]
-    assert app.button[0].disabled
+    assert find_button(app).disabled
 
 
 def test_ready_pantry_can_search():
     app = start()
     assert any("All 8 items ready." in m.value for m in app.main.markdown)
-    assert not app.button[0].disabled
+    assert not find_button(app).disabled
 
 
 def test_switching_architecture_clears_old_results():
     app = start()
-    app.button[0].click().run()
+    find_button(app).click().run()
     app.sidebar.radio(key="architecture").set_value("B: Blackboard").run()
     assert titles(app) == ["## Enter your pantry"]
     assert "result" not in app.session_state
@@ -82,7 +86,7 @@ def test_switching_architecture_clears_old_results():
 
 def results(architecture="A: Pipe-and-Filter", pantry=None):
     app = start(architecture, pantry)
-    app.button[0].click().run()
+    find_button(app).click().run()
     assert not app.exception
     return app
 
@@ -144,7 +148,7 @@ def test_app_works_on_a_copy_of_the_sample_profiles(saved_profiles):
     sample = (PROFILES_DIR / "demo.json").read_text()
     app = start()
     app.multiselect(key="diets_demo").set_value(["vegetarian"]).run()
-    app.button[0].click().run()
+    find_button(app).click().run()
     assert not app.exception
     assert load_profile("demo", saved_profiles).restrictions == ("vegetarian",)
     assert (PROFILES_DIR / "demo.json").read_text() == sample
@@ -192,7 +196,7 @@ def test_new_search_forgets_old_choices():
     app.radio(key="sub_R003_tomato").set_value("Reject").run()
     next(b for b in app.button if b.label == "< Back to results").click().run()
     next(b for b in app.button if b.label == "< Back to pantry").click().run()
-    app.button[0].click().run()
+    find_button(app).click().run()
     assert "rejected" not in app.session_state
     assert not any(str(k).startswith("sub_") for k in app.session_state)
 
@@ -255,3 +259,33 @@ def test_start_over_returns_to_an_empty_search():
     next(b for b in app.button if b.label == "Start over").click().run()
     assert titles(app) == ["## Enter your pantry"]
     assert "saved_picks" not in app.session_state and "result" not in app.session_state
+
+
+# ----------------------------------------------------------- step 1: add ingredient bar
+
+def add_button(app):
+    return next(b for b in app.button if b.label == "Add")
+
+
+def test_add_bar_offers_only_known_ingredients_and_their_units():
+    app = start()
+    names = app.selectbox(key="add_name")
+    assert "carrot (carrots)" in names.options                 # other names help the search
+    assert "unobtainium" not in names.options
+    assert add_button(app).disabled
+    names.select("egg").run()
+    assert app.selectbox(key="add_unit_egg").options == ["count"]
+
+
+def test_adding_an_ingredient_puts_it_in_the_table_and_clears_the_bar():
+    app = start()
+    app.selectbox(key="add_name").select("carrot").run()
+    app.number_input(key="add_qty").set_value(3).run()
+    assert not add_button(app).disabled
+    add_button(app).click().run()
+    assert not app.exception
+    table = app.session_state["pantry_start"]
+    assert list(table.iloc[-1][["Ingredient", "Quantity", "Unit"]]) == ["carrot", 3, "count"]
+    assert len(table) == 9
+    assert app.selectbox(key="add_name").value is None
+    assert any("All 9 items ready." in m.value for m in app.main.markdown)

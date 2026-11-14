@@ -25,10 +25,11 @@ from smart_shelf.common.data_access import (  # noqa: E402
 )
 from smart_shelf.common.models import UserProfile  # noqa: E402
 from smart_shelf.ui.backends import BACKENDS  # noqa: E402
-from smart_shelf.ui.pantry_check import check_pantry  # noqa: E402
+from smart_shelf.ui.pantry_check import check_pantry, units_for  # noqa: E402
 
 STEPS = ["Enter pantry", "Finding recipes", "Results", "Review substitutes", "Shopping list"]
 LOGO = base64.b64encode((HERE / "logo.svg").read_bytes()).decode()
+PANTRY_COLUMNS = ["Ingredient", "Quantity", "Unit", "Expires"]
 UNITS = ["g", "kg", "oz", "lb", "ml", "l", "fl oz", "tsp", "tbsp", "cup",
          "count", "clove", "slice", "stick", "can"]
 # A starting pantry so the app can be tried right away; the user can edit or clear it.
@@ -181,17 +182,23 @@ def screen_pantry(ref):
     with left:
         st.session_state.setdefault("pantry_start", pd.DataFrame(
             [(name, qty, unit, pd.to_datetime(expires)) for name, qty, unit, expires in SAMPLE_PANTRY],
-            columns=["Ingredient", "Quantity", "Unit", "Expires"]))
+            columns=PANTRY_COLUMNS))
+        add_bar(ref)
+        # Ingredient names can't be typed here; new ones come from the Add bar above,
+        # so only names in our data get in. Amounts, units and dates stay editable.
         table = st.data_editor(
-            st.session_state.pantry_start, num_rows="dynamic", hide_index=True, width="stretch",
+            st.session_state.pantry_start, num_rows="delete", hide_index=True, width="stretch",
             column_config={
-                "Ingredient": st.column_config.TextColumn(width="medium"),
+                "Ingredient": st.column_config.TextColumn(width="medium", disabled=True),
                 "Quantity": st.column_config.NumberColumn(min_value=0, width="small"),
                 "Unit": st.column_config.SelectboxColumn(options=UNITS, width="small"),
                 "Expires": st.column_config.DateColumn(format="MMM D, YYYY", width="small"),
             },
             key="pantry_editor",
         )
+        st.session_state.pantry_current = table
+        html("<span class='muted'>To remove a row, select it on the left edge and press "
+             "Delete.</span>")
     with right:
         diets, allergies = split_rules(ref)
         with st.container(border=True):
@@ -222,6 +229,42 @@ def screen_pantry(ref):
 
         if st.button("Find recipes", type="primary", disabled=not rows or bool(problems)):
             find_recipes(ref, profile, chosen_diets, chosen_allergies, rows)
+
+
+def ingredient_label(ref, name):
+    """'carrot (carrots)': showing other names lets typing any of them find the ingredient."""
+    aliases = ref.ingredients[name].aliases
+    return f"{name} ({', '.join(aliases)})" if aliases else name
+
+
+def add_bar(ref):
+    """Search our ingredient list as you type, then add the ingredient to the table."""
+    with st.container(border=True):
+        html("<div class='label'>Add an ingredient</div>")
+        name_col, qty_col, unit_col, date_col, button_col = st.columns(
+            [0.36, 0.16, 0.16, 0.2, 0.12], vertical_alignment="bottom")
+        name = name_col.selectbox("Ingredient", sorted(ref.ingredients), index=None,
+                                  format_func=lambda n: ingredient_label(ref, n),
+                                  placeholder="Start typing, e.g. carrot", key="add_name")
+        qty = qty_col.number_input("Quantity", min_value=0.0, value=None, step=1.0, key="add_qty")
+        # Only units that work for this ingredient (eggs: count; flour: g, cup, ...).
+        unit = unit_col.selectbox("Unit", units_for(ref, name) if name else [],
+                                  key=f"add_unit_{name}", disabled=not name)
+        expires = date_col.date_input("Expires (optional)", value=None, key="add_expires")
+        ready = bool(name and qty and qty > 0 and unit)
+        button_col.button("Add", disabled=not ready, on_click=add_row,
+                          args=(name, qty, unit, expires))
+
+
+def add_row(name, qty, unit, expires):
+    """Put the new ingredient at the bottom of the table, keeping the edits made so far."""
+    current = st.session_state.get("pantry_current", st.session_state.pantry_start)
+    new = pd.DataFrame([(name, qty, unit, pd.to_datetime(expires))], columns=PANTRY_COLUMNS)
+    st.session_state.pantry_start = pd.concat([current, new], ignore_index=True)
+    st.session_state.pop("pantry_editor", None)     # those edits now live in pantry_start
+    st.session_state.add_name = None                 # clear the bar for the next ingredient
+    st.session_state.add_qty = None
+    st.session_state.add_expires = None
 
 
 def find_recipes(ref, profile, diets, allergies, rows):
