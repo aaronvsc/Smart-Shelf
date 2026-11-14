@@ -4,11 +4,13 @@ from __future__ import annotations
 import difflib
 import math
 from datetime import date
+from typing import Iterable
 
 from smart_shelf.arch_a.config import TYPO_CUTOFF
 from smart_shelf.arch_a.filter_base import Filter
-from smart_shelf.common.models import Ingredient, PantryItem, ReferenceData
+from smart_shelf.common.models import Ingredient, PantryItem, ReferenceData, UserProfile
 from smart_shelf.arch_a.records import NormalizedPantry, UnrecognizedItem
+from smart_shelf.arch_a.stores import INGREDIENT_DICTIONARY
 
 UNIT_ALIASES = {
     "gram": "g", "grams": "g", "gr": "g",
@@ -26,8 +28,21 @@ METRIC = {"kg": ("g", 1000.0), "l": ("ml", 1000.0)}
 
 
 class NormalizeFilter(Filter):
+    """The UI calls submit() (Figure 1's "submit pantry" procedure call). Unrecognized
+    rows go straight back to the caller; everything usable goes down p1 to Match."""
+    reads = frozenset({INGREDIENT_DICTIONARY})
+
+    def submit(self, rows: list[dict], restrictions: tuple[str, ...],
+               rejected_subs: Iterable[tuple[str, str]], today: date
+               ) -> tuple[dict[str, PantryItem], list[UnrecognizedItem]]:
+        self.stores.check_restrictions(UserProfile("submitted", restrictions=restrictions))
+        pantry, unrecognized = self.normalize(rows, self.stores)
+        self.out.put(NormalizedPantry(pantry, restrictions, frozenset(map(tuple, rejected_subs)), today))
+        self.out.close()
+        return pantry, unrecognized
+
     def process(self, rows):
-        pantry, _ = self.normalize(rows, self.ref)
+        pantry, _ = self.normalize(rows, self.stores)
         yield NormalizedPantry(pantry)
 
     @staticmethod
