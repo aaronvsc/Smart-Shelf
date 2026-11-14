@@ -270,11 +270,17 @@ def add_button(app):
 def test_add_bar_offers_only_known_ingredients_and_their_units():
     app = start()
     names = app.selectbox(key="add_name")
-    assert "carrot (carrots)" in names.options                 # other names help the search
+    assert "carrot" in names.options                           # the same plain name as the table
     assert "unobtainium" not in names.options
     assert add_button(app).disabled
     names.select("egg").run()
     assert app.selectbox(key="add_unit_egg").options == ["count"]
+
+
+def test_starting_pantry_uses_the_same_names_as_the_add_bar():
+    app = start()
+    names = set(app.selectbox(key="add_name").options)
+    assert set(app.session_state["pantry_start"]["Ingredient"]) <= names
 
 
 def test_adding_an_ingredient_puts_it_in_the_table_and_clears_the_bar():

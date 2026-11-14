@@ -34,9 +34,9 @@ UNITS = ["g", "kg", "oz", "lb", "ml", "l", "fl oz", "tsp", "tbsp", "cup",
          "count", "clove", "slice", "stick", "can"]
 # A starting pantry so the app can be tried right away; the user can edit or clear it.
 SAMPLE_PANTRY = [
-    ("rice", 400, "g", None), ("eggs", 6, "count", None), ("olive oil", 200, "ml", None),
-    ("onion", 2, "count", None), ("garlic", 4, "clove", None), ("spaghetti", 500, "g", None),
-    ("tomatoes", 4, "count", "2026-11-16"), ("milk", 2, "cup", "2026-11-18"),
+    ("rice", 400, "g", None), ("egg", 6, "count", None), ("olive oil", 200, "ml", None),
+    ("onion", 2, "count", None), ("garlic", 4, "clove", None), ("pasta", 500, "g", None),
+    ("tomato", 4, "count", "2026-11-16"), ("milk", 2, "cup", "2026-11-18"),
 ]
 
 # Extra styling the theme in .streamlit/config.toml can't do on its own.
@@ -231,20 +231,14 @@ def screen_pantry(ref):
             find_recipes(ref, profile, chosen_diets, chosen_allergies, rows)
 
 
-def ingredient_label(ref, name):
-    """'carrot (carrots)': showing other names lets typing any of them find the ingredient."""
-    aliases = ref.ingredients[name].aliases
-    return f"{name} ({', '.join(aliases)})" if aliases else name
-
-
 def add_bar(ref):
     """Search our ingredient list as you type, then add the ingredient to the table."""
     with st.container(border=True):
         html("<div class='label'>Add an ingredient</div>")
         name_col, qty_col, unit_col, date_col, button_col = st.columns(
             [0.36, 0.16, 0.16, 0.2, 0.12], vertical_alignment="bottom")
+        # The same names the table, recipe cards and shopping list use.
         name = name_col.selectbox("Ingredient", sorted(ref.ingredients), index=None,
-                                  format_func=lambda n: ingredient_label(ref, n),
                                   placeholder="Start typing, e.g. carrot", key="add_name")
         qty = qty_col.number_input("Quantity", min_value=0.0, value=None, step=1.0, key="add_qty")
         # Only units that work for this ingredient (eggs: count; flour: g, cup, ...).
