@@ -25,6 +25,7 @@ from smart_shelf.common.data_access import (  # noqa: E402
 )
 from smart_shelf.common.models import UserProfile  # noqa: E402
 from smart_shelf.ui.backends import BACKENDS  # noqa: E402
+from smart_shelf.ui.pantry_check import check_pantry  # noqa: E402
 
 STEPS = ["Enter pantry", "Finding recipes", "Results", "Review substitutes", "Shopping list"]
 LOGO = base64.b64encode((HERE / "logo.svg").read_bytes()).decode()
@@ -202,14 +203,25 @@ def screen_pantry(ref):
                                               key=f"allergies_{profile.user_id}")
             html("<span class='muted'>Changes are saved to your profile when you search.</span>")
 
-        if st.session_state.get("problem"):
-            with st.container(border=True):
-                html("<div class='label'>Pantry check</div>")
+        rows = pantry_rows(table)
+        problems = check_pantry(rows, ref)
+        with st.container(border=True):
+            html("<div class='label'>Pantry check</div>")
+            if not rows:
+                html("<span class='muted'>Add at least one ingredient.</span>")
+            elif problems:
+                html(f"{len(rows) - len(problems)} of {len(rows)} items ready. "
+                     "Fix or delete these rows to search:")
+                for problem in problems:
+                    st.warning(problem)
+            else:
+                html(f"All {len(rows)} items ready.")
+            if st.session_state.get("problem"):
                 st.error(st.session_state.problem)
                 show_unrecognized(st.session_state.get("unrecognized", []))
 
-        if st.button("Find recipes", type="primary"):
-            find_recipes(ref, profile, chosen_diets, chosen_allergies, pantry_rows(table))
+        if st.button("Find recipes", type="primary", disabled=not rows or bool(problems)):
+            find_recipes(ref, profile, chosen_diets, chosen_allergies, rows)
 
 
 def find_recipes(ref, profile, diets, allergies, rows):

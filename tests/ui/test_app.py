@@ -57,14 +57,17 @@ def test_find_recipes_moves_to_results(architecture):
     assert app.session_state["result"].status == "ok"
 
 
-@pytest.mark.parametrize("architecture", list(BACKENDS))
-def test_unusable_pantry_stays_on_step_one(architecture):
-    app = start(architecture, pantry=[("unobtainium", 1, "g", None)])
-    app.button[0].click().run()
-    assert not app.exception
-    assert titles(app) == ["## Enter your pantry"]
-    assert any("None of your pantry items" in e.value for e in app.error)
-    assert any("unobtainium" in w.value for w in app.warning)
+def test_pantry_check_blocks_search_until_rows_are_fixed():
+    app = start(pantry=[("eggs", 6, "count", None), ("carrots", None, None, None)])
+    assert any("1 of 2 items ready" in m.value for m in app.main.markdown)
+    assert [w.value for w in app.warning] == ["carrots: add a quantity above 0."]
+    assert app.button[0].disabled
+
+
+def test_ready_pantry_can_search():
+    app = start()
+    assert any("All 8 items ready." in m.value for m in app.main.markdown)
+    assert not app.button[0].disabled
 
 
 def test_switching_architecture_clears_old_results():
