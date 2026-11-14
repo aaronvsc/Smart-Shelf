@@ -12,6 +12,7 @@ import shutil
 import sys
 from datetime import date
 from pathlib import Path
+from uuid import uuid4
 
 import pandas as pd
 import streamlit as st
@@ -96,9 +97,10 @@ def split_rules(ref):
 
 def clear_run():
     """Forget the last search: its backend, results and substitute choices."""
-    for key in ("backend", "result", "problem", "shown", "rejected", "ranking_before"):
+    for key in ("backend", "result", "problem", "shown", "rejected", "ranking_before",
+                "pending_pick", "saved_picks"):
         st.session_state.pop(key, None)
-    for key in [key for key in st.session_state if str(key).startswith("sub_")]:
+    for key in [key for key in st.session_state if str(key).startswith(("sub_", "pick_"))]:
         del st.session_state[key]
 
 
@@ -423,6 +425,77 @@ def screen_substitutes(ref):
                                           start=1):
                 html(f"{rank}. {record.recipe.name} <span class='muted'>| "
                      f"{record.score:.2f} |</span> {movement(rank, record.recipe.id)}")
+        st.button("Choose recipes", type="primary", on_click=go, args=(5,))
+
+
+# ---------------------------------------------------------------- step 5
+
+def save_picks(recipe_ids):
+    """Save the picked recipes to history and get one shopping list for all of them.
+
+    Each click gets its own event ID. If saving fails and the user retries the same
+    picks, the same ID is reused, so the architecture never saves history twice.
+    """
+    pending = st.session_state.get("pending_pick")
+    event_id = pending[0] if pending and pending[1] == recipe_ids else str(uuid4())
+    st.session_state.pending_pick = (event_id, recipe_ids)
+    try:
+        shopping = st.session_state.backend.select(recipe_ids, event_id=event_id)
+    except (ValueError, ProfileError, OSError) as error:
+        st.session_state.problem = f"Your picks couldn't be saved: {error}"
+        return
+    st.session_state.pop("pending_pick")
+    st.session_state.saved_picks = (recipe_ids, shopping)
+
+
+def shopping_text(shopping):
+    return "\n".join(f"{name}, {amount(qty, unit)}" for name, qty, unit in shopping)
+
+
+def screen_select(ref):
+    result = st.session_state.result
+    st.button("< Back to substitutes", on_click=go, args=(4,))
+    page_title("Pick what you're cooking")
+    html("<span class='muted'>We'll save your picks to your history, so future rankings "
+         "lean toward recipes like these, and make one shopping list for all of them.</span>")
+    st.write("")
+    if st.session_state.get("problem"):
+        st.error(st.session_state.pop("problem"))
+
+    left, right = st.columns([0.5, 0.5], gap="large")
+    with left:
+        with st.container(border=True):
+            html("<div class='label'>Your recipes</div>")
+            picked = []
+            for record in result.ranked[:st.session_state.get("shown", PAGE_SIZE)]:
+                need = len(record.to_buy)
+                note = "ready to cook" if need == 0 else f"need {need} item{'s' if need > 1 else ''}"
+                if st.checkbox(f"{record.recipe.name} | {record.recipe.cook_time_min} min | {note}",
+                               key=f"pick_{record.recipe.id}"):
+                    picked.append(record.recipe.id)
+        picked = tuple(sorted(picked))
+        saved = st.session_state.get("saved_picks")
+        already_saved = saved is not None and saved[0] == picked
+        st.button("Save picks and make shopping list", type="primary",
+                  disabled=not picked or already_saved, on_click=save_picks, args=(picked,))
+
+    with right:
+        with st.container(border=True):
+            html("<div class='label'>Your shopping list</div>")
+            if not already_saved:
+                html("<span class='muted'>Pick your recipes and save them to see one combined "
+                     "list. We count your pantry once across every recipe.</span>")
+            elif not saved[1]:
+                html("<span class='muted'>Nothing to buy. You have everything.</span>")
+            else:
+                for name, qty, unit in saved[1]:
+                    html(f"{name}, {amount(qty, unit)}")
+        if already_saved:
+            if saved[1]:
+                st.download_button("Download list", shopping_text(saved[1]),
+                                   file_name="shopping-list.txt")
+            st.success("Saved to your history. Future rankings will lean toward recipes like these.")
+            st.button("Start over", on_click=reset)
 
 
 # ---------------------------------------------------------------- main
@@ -437,7 +510,9 @@ def main():
     except DataError as error:
         st.error(f"The recipe data couldn't be loaded, so Smart-Shelf can't run: {error}")
         return
-    if st.session_state.step == 4 and "result" in st.session_state:
+    if st.session_state.step == 5 and "result" in st.session_state:
+        screen_select(ref)
+    elif st.session_state.step == 4 and "result" in st.session_state:
         screen_substitutes(ref)
     elif st.session_state.step >= 3 and "result" in st.session_state:
         screen_results(ref)

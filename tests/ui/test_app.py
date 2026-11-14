@@ -192,3 +192,63 @@ def test_new_search_forgets_old_choices():
     app.button[0].click().run()
     assert "rejected" not in app.session_state
     assert not any(str(k).startswith("sub_") for k in app.session_state)
+
+
+# ----------------------------------------------------------- step 5: pick and shop
+
+SAVE = "Save picks and make shopping list"
+
+
+def pick_screen(architecture):
+    app = substitutes(architecture)
+    next(b for b in app.button if b.label == "Choose recipes").click().run()
+    assert not app.exception
+    assert titles(app) == ["## Pick what you're cooking"]
+    return app
+
+
+def save_button(app):
+    return next(b for b in app.button if b.label == SAVE)
+
+
+def test_save_is_disabled_until_something_is_picked():
+    app = pick_screen("A: Pipe-and-Filter")
+    assert save_button(app).disabled
+
+
+@pytest.mark.parametrize("architecture", list(BACKENDS))
+def test_saving_picks_records_history_once_and_lists_what_to_buy(architecture, saved_profiles):
+    from smart_shelf.common.data_access import load_profile
+    app = pick_screen(architecture)
+    before = len(load_profile("demo", saved_profiles).history)
+    app.checkbox(key="pick_R002").check().run()
+    app.checkbox(key="pick_R004").check().run()
+    save_button(app).click().run()
+    assert not app.exception
+    app.run()                                                       # a plain rerun saves nothing new
+    history = load_profile("demo", saved_profiles).history
+    assert [entry.recipe_id for entry in history[before:]] == ["R002", "R004"]
+    assert app.session_state["saved_picks"][1] == [("parmesan", 50.0, "g")]
+    assert any(m.value == "parmesan, 50 g" for m in app.main.markdown)
+    assert any("Saved to your history" in s.value for s in app.success)
+    assert save_button(app).disabled                                # no double save by clicking again
+
+
+def test_both_architectures_make_the_same_shopping_list():
+    lists = []
+    for architecture in BACKENDS:
+        app = pick_screen(architecture)
+        for rid in ("R002", "R004", "R009"):
+            app.checkbox(key=f"pick_{rid}").check().run()
+        save_button(app).click().run()
+        lists.append(app.session_state["saved_picks"])
+    assert lists[0] == lists[1]
+
+
+def test_start_over_returns_to_an_empty_search():
+    app = pick_screen("A: Pipe-and-Filter")
+    app.checkbox(key="pick_R002").check().run()
+    save_button(app).click().run()
+    next(b for b in app.button if b.label == "Start over").click().run()
+    assert titles(app) == ["## Enter your pantry"]
+    assert "saved_picks" not in app.session_state and "result" not in app.session_state
