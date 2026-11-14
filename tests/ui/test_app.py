@@ -2,7 +2,7 @@
 
 Streamlit's AppTest runs the app without a browser, so we can check that each
 screen loads without errors and shows what it should, for both architectures.
-None of these tests change a profile, so the real demo profile stays the same.
+Profiles are read from a temp copy (see conftest.py), so the samples in git never change.
 """
 from pathlib import Path
 
@@ -132,3 +132,16 @@ def test_back_button_returns_to_pantry():
     app = results()
     next(b for b in app.button if b.label == "< Back to pantry").click().run()
     assert titles(app) == ["## Enter your pantry"]
+
+
+# ----------------------------------------------------------- saved profile copy
+
+def test_app_works_on_a_copy_of_the_sample_profiles(saved_profiles):
+    from smart_shelf.common.data_access import PROFILES_DIR, load_profile
+    sample = (PROFILES_DIR / "demo.json").read_text()
+    app = start()
+    app.multiselect(key="diets_demo").set_value(["vegetarian"]).run()
+    app.button[0].click().run()
+    assert not app.exception
+    assert load_profile("demo", saved_profiles).restrictions == ("vegetarian",)
+    assert (PROFILES_DIR / "demo.json").read_text() == sample

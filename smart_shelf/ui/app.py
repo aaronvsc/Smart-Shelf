@@ -7,6 +7,8 @@ same. The five steps follow section 1.4.1 of our proposal.
 Run from the Smart-Shelf folder:   streamlit run smart_shelf/ui/app.py
 """
 import base64
+import os
+import shutil
 import sys
 from datetime import date
 from pathlib import Path
@@ -18,7 +20,7 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parents[1]))    # so `import smart_shelf` works when Streamlit runs this file
 
 from smart_shelf.common.data_access import (  # noqa: E402
-    PROFILES_DIR, DataError, ProfileError, load_profile, load_reference_data, save_profile,
+    DATA_DIR, PROFILES_DIR, DataError, ProfileError, load_profile, load_reference_data, save_profile,
 )
 from smart_shelf.common.models import UserProfile  # noqa: E402
 from smart_shelf.ui.backends import BACKENDS  # noqa: E402
@@ -65,8 +67,23 @@ def reference_data():
     return load_reference_data()
 
 
+def saved_profiles_dir() -> Path:
+    """Where the app reads and writes profiles: a git-ignored copy of data/profiles/.
+
+    Using the app changes a profile (diet edits, recipe history), so it works on a
+    copy and the sample profiles in git stay the same. Delete data/user_profiles/
+    to start fresh. Tests point SMART_SHELF_PROFILES at a temp folder instead.
+    """
+    folder = Path(os.environ.get("SMART_SHELF_PROFILES", DATA_DIR / "user_profiles"))
+    folder.mkdir(parents=True, exist_ok=True)
+    for sample in PROFILES_DIR.glob("*.json"):
+        if not (folder / sample.name).exists():
+            shutil.copy(sample, folder / sample.name)
+    return folder
+
+
 def profile_ids():
-    return sorted(path.stem for path in PROFILES_DIR.glob("*.json"))
+    return sorted(path.stem for path in saved_profiles_dir().glob("*.json"))
 
 
 def split_rules(ref):
@@ -144,7 +161,7 @@ def screen_pantry(ref):
     st.write("")
 
     try:
-        profile = load_profile(st.session_state.user_id)
+        profile = load_profile(st.session_state.user_id, saved_profiles_dir())
     except ProfileError as error:
         st.error(f"Your profile couldn't be loaded, so we can't check your diet: {error}")
         return
@@ -189,10 +206,10 @@ def find_recipes(ref, profile, diets, allergies, rows):
     """Step 2: save any diet changes, then hand the pantry to the chosen architecture."""
     if (tuple(diets), tuple(allergies)) != (profile.restrictions, profile.allergies):
         profile = UserProfile(profile.user_id, tuple(diets), tuple(allergies), profile.history)
-        save_profile(profile)
+        save_profile(profile, saved_profiles_dir())
 
     st.session_state.step = 2
-    backend = BACKENDS[st.session_state.architecture](ref)
+    backend = BACKENDS[st.session_state.architecture](ref, saved_profiles_dir())
     with st.spinner(f"Checking your pantry against {len(ref.recipes)} recipes"):
         result = backend.run(rows, profile)
     st.session_state.backend, st.session_state.result = backend, result
