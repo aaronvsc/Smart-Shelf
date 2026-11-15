@@ -75,6 +75,7 @@ def test_calls_before_run_are_refused(backend):
         backend.select(["R002"], event_id="click-1")
 
 
+@pytest.mark.skipif(len(BACKENDS) < 2, reason="compares A with B; runs only where both are present")
 def test_both_architectures_give_the_same_answers(ref, tmp_path):
     answers = []
     for name, cls in BACKENDS.items():

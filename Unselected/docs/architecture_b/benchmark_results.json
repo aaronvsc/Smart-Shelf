@@ -1,0 +1,45 @@
+{
+  "python": "3.12.14",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "fixed_analysis_date": "2026-11-03",
+  "repeats": 10,
+  "real_recipe_count": 25,
+  "pantry_items": 50,
+  "real_data": {
+    "A": {
+      "median_ms": 4.314,
+      "max_ms": 8.763
+    },
+    "B": {
+      "median_ms": 26.598,
+      "max_ms": 39.678
+    }
+  },
+  "synthetic_200_recipes": {
+    "A": {
+      "median_ms": 15.213,
+      "max_ms": 31.677
+    },
+    "B": {
+      "median_ms": 122.822,
+      "max_ms": 161.761
+    }
+  },
+  "synthetic_note": "Existing recipes repeated with unique IDs; not 200 curated recipes.",
+  "substitution_update": {
+    "decision": [
+      "R001",
+      "olive oil"
+    ],
+    "A_median_ms": 5.686,
+    "B_median_ms": 15.948,
+    "B_activations": [
+      "SubstituteFinder",
+      "NutritionCalculator",
+      "FreshnessScorer",
+      "Ranker",
+      "ShoppingListBuilder"
+    ],
+    "note": "Fewer activations do not imply lower elapsed time; B copies region snapshots."
+  }
+}
