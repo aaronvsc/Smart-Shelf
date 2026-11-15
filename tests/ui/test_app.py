@@ -1,8 +1,10 @@
 """Smoke tests for the Streamlit UI in smart_shelf/ui/app.py.
 
 Streamlit's AppTest runs the app without a browser, so we can check that each
-screen loads without errors and shows what it should, for both architectures.
+screen loads without errors and shows what it should, for each architecture present.
 Profiles are read from a temp copy (see conftest.py), so the samples in git never change.
+In Selected/ and Unselected/ only one architecture is present: tests that compare A
+with B skip themselves there, and the rest run against the one architecture.
 """
 from pathlib import Path
 
@@ -12,6 +14,9 @@ from streamlit.testing.v1 import AppTest
 
 from smart_shelf.ui.backends import BACKENDS
 
+FIRST = list(BACKENDS)[0]                       # an architecture that is present
+needs_both = pytest.mark.skipif(len(BACKENDS) < 2,
+                                reason="compares A with B; runs only where both are present")
 APP = str(Path(__file__).parents[2] / "smart_shelf" / "ui" / "app.py")
 
 
@@ -22,7 +27,7 @@ def start(architecture=None, pantry=None):
             pantry, columns=["Ingredient", "Quantity", "Unit", "Expires"])
     app.run()
     assert not app.exception
-    if architecture:
+    if architecture and len(BACKENDS) > 1:      # one architecture means there's no switch
         app.sidebar.radio(key="architecture").set_value(architecture).run()
     return app
 
@@ -41,6 +46,7 @@ def test_app_starts_on_step_one():
     assert app.sidebar.selectbox(key="user_id").value == "demo"
 
 
+@needs_both
 def test_sidebar_offers_both_architectures():
     app = start()
     assert app.sidebar.radio(key="architecture").options == list(BACKENDS)
@@ -74,6 +80,7 @@ def test_ready_pantry_can_search():
     assert not find_button(app).disabled
 
 
+@needs_both
 def test_switching_architecture_clears_old_results():
     app = start()
     find_button(app).click().run()
@@ -84,7 +91,7 @@ def test_switching_architecture_clears_old_results():
 
 # ----------------------------------------------------------- step 3: results
 
-def results(architecture="A: Pipe-and-Filter", pantry=None):
+def results(architecture=FIRST, pantry=None):
     app = start(architecture, pantry)
     find_button(app).click().run()
     assert not app.exception
@@ -146,7 +153,7 @@ def test_every_recipe_breaking_the_diet_explains_why():
     # Run a vegetarian with only chicken directly, so the real demo profile isn't edited.
     from smart_shelf.common.data_access import load_reference_data
     from smart_shelf.common.models import UserProfile
-    result = BACKENDS["A: Pipe-and-Filter"](load_reference_data()).run(
+    result = BACKENDS[FIRST](load_reference_data()).run(
         [{"name": "chicken breast", "qty": 500, "unit": "g"}], UserProfile("test", ("vegetarian",)))
     app = start()
     app.session_state["result"] = result
@@ -159,9 +166,12 @@ def test_every_recipe_breaking_the_diet_explains_why():
 
 
 def test_no_matches_explains_what_to_add():
-    from smart_shelf.arch_a.records import PipelineResult
+    from types import SimpleNamespace
     app = start()
-    app.session_state["result"] = PipelineResult("no_matches")
+    # A stand-in result: real data always matches something, and either architecture's
+    # result has these same fields.
+    app.session_state["result"] = SimpleNamespace(status="no_matches", ranked=[], unrecognized=[],
+                                                  exclusions=None, elapsed_s=0.0)
     app.session_state["step"] = 3
     app.run()
     assert not app.exception
@@ -235,7 +245,7 @@ def test_rejecting_a_swap_reranks_only_the_chosen_recipes(architecture):
 
 
 def test_new_search_forgets_old_choices():
-    app = substitutes("A: Pipe-and-Filter")
+    app = substitutes(FIRST)
     app.radio(key="sub_R003_tomato").set_value("Reject").run()
     button(app, "< Back to results").click().run()
     button(app, "< Back to pantry").click().run()
@@ -263,13 +273,13 @@ def picks(app):
 
 
 def test_step_five_starts_with_every_chosen_recipe_checked():
-    app = pick_screen("A: Pipe-and-Filter", uncheck=["R002"], check=["R147"])
+    app = pick_screen(FIRST, uncheck=["R002"], check=["R147"])
     assert len(picks(app)) == 10
     assert "R147" in picks(app) and "R002" not in picks(app)
 
 
 def test_save_is_disabled_when_everything_is_unchecked():
-    app = pick_screen("A: Pipe-and-Filter")
+    app = pick_screen(FIRST)
     for rid in picks(app):
         app.checkbox(key=f"pick_{rid}").uncheck().run()
     assert button(app, SAVE).disabled
@@ -294,6 +304,7 @@ def test_saving_picks_records_history_once_and_lists_what_to_buy(architecture, s
     assert button(app, "Update shopping list").disabled             # no double save by clicking again
 
 
+@needs_both
 def test_both_architectures_make_the_same_shopping_list():
     lists = []
     for architecture in BACKENDS:
@@ -306,7 +317,7 @@ def test_both_architectures_make_the_same_shopping_list():
 
 
 def test_start_over_returns_to_an_empty_search():
-    app = pick_screen("A: Pipe-and-Filter")
+    app = pick_screen(FIRST)
     button(app, SAVE).click().run()
     button(app, "Start over").click().run()
     assert titles(app) == ["## Enter your pantry"]
@@ -454,7 +465,7 @@ def test_times_scale_the_list_and_changing_them_adds_no_history(architecture, sa
 
 
 def test_times_box_is_off_for_unchecked_recipes():
-    app = pick_screen("A: Pipe-and-Filter")
+    app = pick_screen(FIRST)
     app.checkbox(key="pick_R002").uncheck().run()
     assert app.number_input(key="times_R002").disabled
     assert not app.number_input(key="times_R003").disabled

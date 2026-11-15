@@ -1,3 +1,4 @@
+import importlib.util
 import random
 import time
 from datetime import date
@@ -128,6 +129,8 @@ def test_combined_shopping_list_skips_what_the_pantry_covers(run, ref):
     assert "rice" not in combined
 
 
+@pytest.mark.skipif(importlib.util.find_spec("smart_shelf.arch_b") is None,
+                    reason="compares A with B; runs only where both are present")
 @pytest.mark.parametrize("pantry, selected", [
     ([{"name": "rice", "qty": 100, "unit": "g"}], ["F004", "F005"]),
     ([{"name": "rice", "qty": 300, "unit": "g"}], ["F004", "F005"]),
