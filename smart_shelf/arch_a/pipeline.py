@@ -5,6 +5,7 @@ import time
 from datetime import date
 from typing import Iterable, Sequence
 
+from smart_shelf.arch_a.config import EPSILON
 from smart_shelf.arch_a.filter_base import Filter
 from smart_shelf.arch_a.filters import (
     DietaryFilter, FreshnessFilter, GapsFilter, MatchFilter, NormalizeFilter,
@@ -84,18 +85,42 @@ class Pipeline:
         else:
             status = "no_matches"
         return PipelineResult(status, ranked, unrecognized, exclusions,
-                              time.perf_counter() - start)
+                              time.perf_counter() - start, pantry)
 
 
-def combine_shopping_lists(ranked: Sequence[RecipeRecord],
-                           selected_ids: Iterable[str]) -> list[tuple[str, float, str]]:
-    """Step 5: merge the shopping lists of the selected recipes into (name, qty, unit)."""
+def combine_shopping_lists(result: PipelineResult, selected_ids: Iterable[str],
+                           ref: ReferenceData, counts: dict[str, int] | None = None
+                           ) -> list[tuple[str, float, str]]:
+    """Step 5: one shopping list (name, qty, unit) for all the selected recipes.
+
+    The pantry is shared, so we add up what every selected recipe needs first
+    and subtract the pantry once. Summing each recipe's own shortfall would let
+    two recipes both "use" the same cup of rice. `counts` says how many times
+    to make a recipe (e.g. {"R003": 3}); recipes left out are made once.
+    """
     selected = set(selected_ids)
-    totals: dict[str, list] = {}
-    for record in ranked:
+    counts = counts or {}
+    demand: dict[str, float] = {}
+    for record in result.ranked:
         if record.recipe.id not in selected:
             continue
-        for gap in record.to_buy:
-            entry = totals.setdefault(gap.name, [0.0, gap.unit])
-            entry[0] += gap.short_qty
-    return [(name, qty, unit) for name, (qty, unit) in totals.items()]
+        times = counts.get(record.recipe.id, 1)
+        gaps = {gap.name: gap for gap in record.missing}
+        for item in record.recipe.ingredients:
+            gap = gaps.get(item.name)
+            if gap is not None and not gap.required:
+                continue                    # optional and missing: left out, never bought
+            need = ref.to_base(item.name, item.qty, item.unit)
+            if item.name in record.substitutions:
+                name = record.substitutions[item.name]
+                sub = next(s for s in ref.substitutes[item.name] if s.name == name)
+                demand[item.name] = demand.get(item.name, 0.0) + (need - gap.short_qty) * times
+                demand[name] = demand.get(name, 0.0) + gap.short_qty * sub.ratio * times
+            else:
+                demand[item.name] = demand.get(item.name, 0.0) + need * times
+    combined = []
+    for name, qty in sorted(demand.items()):
+        short = qty - (result.pantry[name].qty if name in result.pantry else 0.0)
+        if short > EPSILON:
+            combined.append((name, short, ref.ingredients[name].base_unit))
+    return combined

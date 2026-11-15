@@ -244,12 +244,13 @@ class Ranker(ReferenceSource):
 
 
 class ShoppingListBuilder(ReferenceSource):
-    inputs = ("rankings", "selected_ids", "pantry")
+    inputs = ("rankings", "selected_ids", "selected_counts", "pantry")
     outputs = ("shopping", "combined_shopping")
 
     def run(self, board):
         records = board.read("rankings")
         selected, pantry = set(board.read("selected_ids")), board.read("pantry")
+        times_of = dict(board.read("selected_counts"))        # recipe -> times made; default 1
         demand: Counter[str] = Counter()
         for record in records:
             record.shopping_list = [gap.name for gap in record.to_buy]
@@ -257,6 +258,7 @@ class ShoppingListBuilder(ReferenceSource):
                 record.note(self.name, "buy " + ", ".join(record.shopping_list))
             if record.recipe.id not in selected:
                 continue
+            times = times_of.get(record.recipe.id, 1)
             gaps = {gap.name: gap for gap in record.missing}
             for item in record.recipe.ingredients:
                 gap = gaps.get(item.name)
@@ -266,10 +268,10 @@ class ShoppingListBuilder(ReferenceSource):
                 if item.name in record.substitutions:
                     name = record.substitutions[item.name]
                     sub = next(sub for sub in self.ref.substitutes[item.name] if sub.name == name)
-                    demand[item.name] += need - gap.short_qty
-                    demand[name] += gap.short_qty * sub.ratio
+                    demand[item.name] += (need - gap.short_qty) * times
+                    demand[name] += gap.short_qty * sub.ratio * times
                 else:
-                    demand[item.name] += need
+                    demand[item.name] += need * times
         combined = []
         for name, qty in sorted(demand.items()):
             short = qty - (pantry[name].qty if name in pantry else 0.0)

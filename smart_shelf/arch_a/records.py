@@ -81,3 +81,4 @@ class PipelineResult:
     unrecognized: list[UnrecognizedItem] = field(default_factory=list)
     exclusions: ExclusionSummary | None = None
     elapsed_s: float = 0.0
+    pantry: dict[str, PantryItem] = field(default_factory=dict)  # normalized input, for the combined list

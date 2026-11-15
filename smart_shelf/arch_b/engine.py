@@ -68,7 +68,7 @@ class BlackboardEngine:
         self.controller = Controller(self.board, default_sources(self.ref, self._save_once))
         self.board.publish(raw_pantry=raw_pantry, profile=profile,
                            rejected_subs=rejected, today=today or date.today(),
-                           selected_ids=(), selection_request=None)
+                           selected_ids=(), selected_counts=(), selection_request=None)
         result = self._execute()
         result.elapsed_s = time.perf_counter() - start
         return result
@@ -100,7 +100,10 @@ class BlackboardEngine:
         self.board.publish(rejected_subs=frozenset(rejected))
         return self._execute()
 
-    def select(self, recipe_ids: Iterable[str], event_id: str, on: date | None = None):
+    def select(self, recipe_ids: Iterable[str], event_id: str, on: date | None = None,
+               counts: dict[str, int] | None = None):
+        """Save the picks to history (once each) and build the combined shopping list.
+        `counts` says how many times to make a recipe (e.g. {"R003": 3}); default once."""
         self._require_run()
         if not isinstance(event_id, str) or not event_id.strip():
             raise ValueError("A nonempty selection event ID is required")
@@ -111,15 +114,24 @@ class BlackboardEngine:
         allowed = {recipe.id for recipe in self.board.read("candidates") if not dietary[recipe.id]}
         if not ids or not set(ids) <= allowed:
             raise ValueError("Select at least one recipe from the allowed ranked results")
+        counts = dict(counts or {})
+        if not set(counts) <= set(ids) or any(
+                isinstance(n, bool) or not isinstance(n, int) or n < 1 for n in counts.values()):
+            raise ValueError("Counts must be whole numbers of 1 or more for selected recipes")
+        selected_counts = tuple(sorted((rid, n) for rid, n in counts.items() if n != 1))
         request = SelectionRequest(event_id, ids, on or self.board.read("today"))
         profile = self.board.read("profile")
         key = (profile.user_id, event_id)
         if key in self._saved:
             if self._saved[key][0] != request:
                 raise ValueError("A selection event ID cannot be reused with different selections or dates")
-            # A rerender of a completed click cannot undo a later selection.
+            # A rerender of a completed click cannot undo a later selection. Repeating the
+            # latest click may change only the counts: the list is rebuilt, history isn't.
+            if self.board.read("selection_request") == request:
+                self.board.publish(selected_counts=selected_counts)
             return self._execute()
-        self.board.publish(selected_ids=ids, selection_request=request)
+        self.board.publish(selected_ids=ids, selected_counts=selected_counts,
+                           selection_request=request)
         return self._execute()
 
     def _execute(self):

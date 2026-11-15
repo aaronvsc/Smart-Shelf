@@ -225,3 +225,6 @@ __marimo__/
 # Editors
 .vscode/
 .idea/
+
+# the app's working copy of the profiles (see saved_profiles_dir in smart_shelf/ui/app.py)
+data/user_profiles/
