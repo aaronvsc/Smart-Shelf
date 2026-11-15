@@ -43,9 +43,6 @@ def copy_common(out: Path, keep: str, drop: str) -> None:
         shutil.copytree(ROOT / "tests" / part, tests / part, ignore=SKIP)
     for path in BOTH_ARCHITECTURE_TESTS:
         (tests / path).unlink(missing_ok=True)
-    docs = ROOT / "docs" / f"architecture_{keep[-1]}"
-    if docs.exists():                        # B's command-line demo reads its sample pantry here
-        shutil.copytree(docs, out / "docs" / docs.name, ignore=SKIP)
 
 
 def compile_code(out: Path) -> int:
@@ -123,7 +120,7 @@ exit /b 1
 def write_guide(out: Path, folder: str, keep: str, title: str) -> None:
     """HOW_TO_RUN.txt: the short version of the Readme, inside the folder itself."""
     extra = ("\nCommand-line demo (Architecture B only):\n"
-             "  .venv/bin/python -m smart_shelf.arch_b --pantry docs/architecture_b/pantry_demo.json\n"
+             "  .venv/bin/python -m smart_shelf.arch_b --pantry data/sample_pantry.json\n"
              if keep == "arch_b" else "")
     (out / "HOW_TO_RUN.txt").write_text(f"""Smart-Shelf - {folder} ({title})
 {"=" * (16 + len(folder) + len(title))}
@@ -148,7 +145,7 @@ Run the tests:
 Folders:
   smart_shelf/   source code ({keep}, the shared common/ code and the ui/)
   compiled/      the same code compiled to Python 3.12 bytecode (.pyc)
-  data/          recipes, ingredients, substitutions and the sample profile
+  data/          recipes, ingredients, substitutions, the sample profile and a sample pantry
   tests/         automated tests for this architecture
 
 Using the app saves profile changes to data/user_profiles/. Delete that folder

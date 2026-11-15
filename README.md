@@ -82,7 +82,7 @@ py -3 -m venv .venv
 Architecture B also has a command-line demo (from `Unselected/`):
 
 ```sh
-.venv/bin/python -m smart_shelf.arch_b --pantry docs/architecture_b/pantry_demo.json
+.venv/bin/python -m smart_shelf.arch_b --pantry data/sample_pantry.json
 ```
 
 **Using the app:** the five steps follow section 1.4.1 of our proposal.
@@ -137,10 +137,9 @@ smart_shelf/            our working source code, both architectures together
   arch_a/                 Architecture A: pipe-and-filter
   arch_b/                 Architecture B: blackboard
   ui/                     Streamlit app shared by both architectures
-data/                   ingredients, recipes, substitutions/nutrition, sample profile
+data/                   ingredients, recipes, substitutions/nutrition, sample profile and pantry
 tests/                  every test, including A-vs-B comparisons
 scripts/                data check, A-vs-B comparison, release build
-docs/                   architecture notes
 ```
 
 `Selected/` and `Unselected/` are built from the working code by

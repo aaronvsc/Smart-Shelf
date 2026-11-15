@@ -12,7 +12,7 @@ def test_cli_runs_without_mutating_demo_profile():
     before = path.read_bytes()
     process = subprocess.run(
         [sys.executable, "-m", "smart_shelf.arch_b", "--pantry",
-         "docs/architecture_b/pantry_demo.json", "--today", "2026-11-03"],
+         "data/sample_pantry.json", "--today", "2026-11-03"],
         cwd=ROOT, capture_output=True, text=True, timeout=10)
     assert process.returncode == 0, process.stderr
     result = json.loads(process.stdout)
@@ -24,7 +24,7 @@ def test_cli_runs_without_mutating_demo_profile():
 def test_cli_missing_profile_fails_closed():
     process = subprocess.run(
         [sys.executable, "-m", "smart_shelf.arch_b", "--pantry",
-         "docs/architecture_b/pantry_demo.json", "--user", "missing_profile_123"],
+         "data/sample_pantry.json", "--user", "missing_profile_123"],
         cwd=ROOT, capture_output=True, text=True, timeout=10)
     assert process.returncode != 0
     assert "Analysis stopped" in process.stderr

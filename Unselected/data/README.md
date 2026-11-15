@@ -13,6 +13,9 @@ opening the JSON files directly, so A and B get the same data in the same shape.
 | `recipes.json` | Recipe Database | Every recipe's id, name, cuisine, cook time, and ingredients. Ingredients are required unless marked `"required": false`, and only ones marked `"substitutable": true` can be swapped. |
 | `profiles/<user_id>.json` | User Profile & History | One private file per user: diet restrictions, allergies, and past recipe picks. `demo.json` is a sample. |
 
+`sample_pantry.json` isn't a data store: it's a small example pantry for Architecture B's
+command-line demo (`python -m smart_shelf.arch_b --pantry data/sample_pantry.json`).
+
 ## Using the data in code
 
 ```python
