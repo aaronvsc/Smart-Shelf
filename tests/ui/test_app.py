@@ -288,10 +288,10 @@ def test_saving_picks_records_history_once_and_lists_what_to_buy(architecture, s
     app.run()                                                       # a plain rerun saves nothing new
     history = load_profile("demo", saved_profiles).history
     assert [entry.recipe_id for entry in history[before:]] == ["R002", "R004"]
-    assert app.session_state["saved_picks"][1] == [("parmesan", 50.0, "g")]
+    assert app.session_state["saved_picks"]["list"] == [("parmesan", 50.0, "g")]
     assert any(m.value == "parmesan, 50 g" for m in app.main.markdown)
     assert any("Saved to your history" in s.value for s in app.success)
-    assert button(app, SAVE).disabled                               # no double save by clicking again
+    assert button(app, "Update shopping list").disabled             # no double save by clicking again
 
 
 def test_both_architectures_make_the_same_shopping_list():
@@ -299,7 +299,8 @@ def test_both_architectures_make_the_same_shopping_list():
     for architecture in BACKENDS:
         app = pick_screen(architecture)
         button(app, SAVE).click().run()
-        lists.append(app.session_state["saved_picks"])
+        saved = app.session_state["saved_picks"]
+        lists.append((saved["ids"], saved["list"]))
     assert lists[0] == lists[1]
     assert len(lists[0][0]) == 10
 
@@ -417,3 +418,40 @@ def test_swaps_are_listed_in_ranked_order_and_stay_put(architecture):
     assert first[:3] == ["sub_R003_tomato", "sub_R002_olive oil", "sub_R079_milk"]
     app.radio(key="sub_R003_tomato").set_value("Reject").run()     # R003 drops in the ranking
     assert choice_keys(app)[:3] == first[:3]                         # but its card doesn't move
+
+
+# ----------------------------------------------------------- step 5: times per recipe
+
+def only_pick(app, keep):
+    for rid in picks(app):
+        if rid not in keep:
+            app.checkbox(key=f"pick_{rid}").uncheck().run()
+
+
+@pytest.mark.parametrize("architecture", list(BACKENDS))
+def test_times_scale_the_list_and_changing_them_adds_no_history(architecture, saved_profiles):
+    from smart_shelf.common.data_access import load_profile
+    app = pick_screen(architecture)
+    only_pick(app, ["R004"])           # Garlic Butter Pasta: 50 g parmesan to buy for one batch
+    app.number_input(key="times_R004").set_value(3).run()
+    button(app, SAVE).click().run()
+    # Three batches also use up the pantry's 4 garlic and 500 g pasta.
+    assert app.session_state["saved_picks"]["list"] == [
+        ("garlic", 8.0, "count"), ("parmesan", 150.0, "g"), ("pasta", 100.0, "g")]
+    history = len(load_profile("demo", saved_profiles).history)
+
+    app.number_input(key="times_R004").set_value(2).run()
+    assert any("Press Update shopping list" in m.value for m in app.main.markdown)
+    button(app, "Update shopping list").click().run()
+    assert not app.exception
+    assert app.session_state["saved_picks"]["list"] == [("garlic", 4.0, "count"),
+                                                        ("parmesan", 100.0, "g")]
+    assert len(load_profile("demo", saved_profiles).history) == history    # no new history
+    assert button(app, "Update shopping list").disabled
+
+
+def test_times_box_is_off_for_unchecked_recipes():
+    app = pick_screen("A: Pipe-and-Filter")
+    app.checkbox(key="pick_R002").uncheck().run()
+    assert app.number_input(key="times_R002").disabled
+    assert not app.number_input(key="times_R003").disabled

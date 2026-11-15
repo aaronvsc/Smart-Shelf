@@ -4,8 +4,9 @@ Both classes below offer the same three calls, matching the user's steps:
   run(pantry_rows, profile)             Steps 1-3: analyze the pantry, rank recipes
   decide_substitute(recipe_id, name, accepted)
                                         Step 4: accept or reject a suggested swap
-  select(recipe_ids, event_id)          Step 5: save the picks to history and
-                                        return the combined shopping list
+  select(recipe_ids, event_id, counts)  Step 5: save the picks to history (once each)
+                                        and return the combined shopping list, with
+                                        counts = how many times each recipe is made
 
 `event_id` names one click of the "select" button. Streamlit reruns the script
 often, so calling select() again with the same ID must not save history twice.
@@ -49,7 +50,8 @@ class PipeAndFilterBackend:
             self._rejected.add(pair)
         return self._rerun()
 
-    def select(self, recipe_ids: Iterable[str], event_id: str) -> ShoppingList:
+    def select(self, recipe_ids: Iterable[str], event_id: str,
+               counts: dict[str, int] | None = None) -> ShoppingList:
         self._require_run()
         ids = tuple(sorted(set(recipe_ids)))
         allowed = {record.recipe.id for record in self.result.ranked}
@@ -60,7 +62,7 @@ class PipeAndFilterBackend:
         if event_id not in self._saved:
             save_selection(self._profile.user_id, list(ids), self._today, self.profiles_dir)
             self._saved[event_id] = ids
-        return combine_shopping_lists(self.result, ids, self.ref)
+        return combine_shopping_lists(self.result, ids, self.ref, counts)
 
     def _rerun(self):
         self.result = self.pipeline.run(self._pantry, self._profile,
@@ -87,8 +89,9 @@ class BlackboardBackend:
         self.result = self.engine.decide_substitute(recipe_id, substitute_name, accepted)
         return self.result
 
-    def select(self, recipe_ids: Iterable[str], event_id: str) -> ShoppingList:
-        self.result = self.engine.select(recipe_ids, event_id=event_id)
+    def select(self, recipe_ids: Iterable[str], event_id: str,
+               counts: dict[str, int] | None = None) -> ShoppingList:
+        self.result = self.engine.select(recipe_ids, event_id=event_id, counts=counts)
         return self.result.combined_shopping_list
 
 

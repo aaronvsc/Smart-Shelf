@@ -86,6 +86,7 @@ def test_both_architectures_give_the_same_answers(ref, tmp_path):
         ranking = [r.recipe.id for r in result.ranked]
         # Compare what the user sees. (After select, B re-ranks with the new
         # history right away; A uses it on the next run.)
-        shopping = backend.select(["R002", "R004", "R150"], event_id="click-1")
+        shopping = backend.select(["R002", "R004", "R150"], event_id="click-1",
+                                  counts={"R004": 3, "R150": 2})
         answers.append((ranking, [(n, round(q, 6), u) for n, q, u in shopping]))
     assert answers[0] == answers[1]

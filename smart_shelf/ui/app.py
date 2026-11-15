@@ -103,7 +103,7 @@ def clear_run():
     for key in ("backend", "result", "problem", "chosen", "show_top", "rejected",
                 "ranking_before", "pending_pick", "saved_picks"):
         st.session_state.pop(key, None)
-    for key in [key for key in st.session_state if str(key).startswith(("sub_", "pick_", "choose_"))]:
+    for key in [key for key in st.session_state if str(key).startswith(("sub_", "pick_", "choose_", "times_"))]:
         del st.session_state[key]
 
 
@@ -576,22 +576,32 @@ def screen_substitutes(ref):
 
 # ---------------------------------------------------------------- step 5
 
-def save_picks(recipe_ids):
+def save_picks(recipe_ids, counts):
     """Save the picked recipes to history and get one shopping list for all of them.
 
     Each click gets its own event ID. If saving fails and the user retries the same
     picks, the same ID is reused, so the architecture never saves history twice.
+    If the picks are already saved and only the counts changed, the saved click's ID
+    is reused too: the list is rebuilt and nothing new goes into history.
     """
+    saved = st.session_state.get("saved_picks")
     pending = st.session_state.get("pending_pick")
-    event_id = pending[0] if pending and pending[1] == recipe_ids else str(uuid4())
+    if saved and saved["ids"] == recipe_ids:
+        event_id = saved["event_id"]
+    elif pending and pending[1] == recipe_ids:
+        event_id = pending[0]
+    else:
+        event_id = str(uuid4())
     st.session_state.pending_pick = (event_id, recipe_ids)
     try:
-        shopping = st.session_state.backend.select(recipe_ids, event_id=event_id)
+        shopping = st.session_state.backend.select(recipe_ids, event_id=event_id,
+                                                   counts=dict(counts))
     except (ValueError, ProfileError, OSError) as error:
         st.session_state.problem = f"Your picks couldn't be saved: {error}"
         return
     st.session_state.pop("pending_pick")
-    st.session_state.saved_picks = (recipe_ids, shopping)
+    st.session_state.saved_picks = {"ids": recipe_ids, "counts": counts,
+                                    "list": shopping, "event_id": event_id}
 
 
 def shopping_text(shopping):
@@ -613,36 +623,50 @@ def screen_select(ref):
     with left:
         with st.container(border=True):
             html("<div class='label'>Your recipes</div>")
-            picked = []
+            picked, times_of = [], {}
             for rank, record in enumerate(chosen_records(result), start=1):
-                key = f"pick_{record.recipe.id}"
+                rid = record.recipe.id
+                key = f"pick_{rid}"
                 st.session_state.setdefault(key, True)          # chosen on step 3, so start checked
-                if st.checkbox(f"**{rank}. {record.recipe.name}** | {pantry_match(record):.0%} match "
-                               f"| {record.recipe.cook_time_min} min", key=key):
-                    picked.append(record.recipe.id)
+                pick_col, times_col = st.columns([0.78, 0.22], vertical_alignment="center")
+                checked = pick_col.checkbox(
+                    f"**{rank}. {record.recipe.name}** | {pantry_match(record):.0%} match "
+                    f"| {record.recipe.cook_time_min} min", key=key)
+                # How many times you'll make it this week; the shopping list scales to match.
+                times = times_col.number_input("Times", min_value=1, max_value=50, value=1, step=1,
+                                               key=f"times_{rid}", disabled=not checked)
+                if checked:
+                    picked.append(rid)
+                    times_of[rid] = int(times)
                 need = still_need(record)
                 html(f"<div class='pick-need'>Still need: {need}</div>" if need
                      else "<div class='pick-need'>Ready to cook. Nothing to buy.</div>")
         picked = tuple(sorted(picked))
+        counts = tuple(sorted(times_of.items()))
         saved = st.session_state.get("saved_picks")
-        already_saved = saved is not None and saved[0] == picked
-        st.button("Save picks and make shopping list", type="primary",
-                  disabled=not picked or already_saved, on_click=save_picks, args=(picked,))
+        same_picks = saved is not None and saved["ids"] == picked
+        already_saved = same_picks and saved["counts"] == counts
+        st.button("Update shopping list" if same_picks else "Save picks and make shopping list",
+                  type="primary", disabled=not picked or already_saved,
+                  on_click=save_picks, args=(picked, counts))
 
     with right:
         with st.container(border=True):
             html("<div class='label'>Your shopping list</div>")
-            if not already_saved:
+            if same_picks and not already_saved:
+                html("<span class='muted'>You changed how many times you'll make a recipe. "
+                     "Press Update shopping list to see the new amounts.</span>")
+            elif not already_saved:
                 html("<span class='muted'>Pick your recipes and save them to see one combined "
                      "list. We count your pantry once across every recipe.</span>")
-            elif not saved[1]:
+            elif not saved["list"]:
                 html("<span class='muted'>Nothing to buy. You have everything.</span>")
             else:
-                for name, qty, unit in saved[1]:
+                for name, qty, unit in saved["list"]:
                     html(f"{name}, {amount(qty, unit)}")
         if already_saved:
-            if saved[1]:
-                st.download_button("Download list", shopping_text(saved[1]),
+            if saved["list"]:
+                st.download_button("Download list", shopping_text(saved["list"]),
                                    file_name="shopping-list.txt")
             st.success("Saved to your history. Future rankings will lean toward recipes like these.")
             st.button("Start over", on_click=reset)
