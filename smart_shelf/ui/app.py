@@ -144,7 +144,11 @@ def sidebar():
         html(f"<div class='brand'><img src='data:image/svg+xml;base64,{LOGO}'>"
              "<span>Smart-Shelf</span></div>")
         st.selectbox("Signed in as", profile_ids(), key="user_id", on_change=reset)
-        st.radio("Architecture", list(BACKENDS), key="architecture", on_change=reset)
+        if len(BACKENDS) > 1:          # our working repo: switch between A and B to compare
+            st.radio("Architecture", list(BACKENDS), key="architecture", on_change=reset)
+        else:                           # Selected/ or Unselected/: one architecture, no switch
+            st.session_state.architecture = next(iter(BACKENDS))
+            html(f"<div class='label'>Architecture</div>{st.session_state.architecture}")
         st.divider()
         rows = []
         for number, name in enumerate(STEPS, start=1):

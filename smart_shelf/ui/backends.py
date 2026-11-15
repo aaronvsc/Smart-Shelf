@@ -10,6 +10,9 @@ Both classes below offer the same three calls, matching the user's steps:
 
 `event_id` names one click of the "select" button. Streamlit reruns the script
 often, so calling select() again with the same ID must not save history twice.
+
+Only architectures whose code is present are offered. Our working repo has both;
+the Selected/ and Unselected/ folders each ship one, so their app shows no switch.
 """
 from __future__ import annotations
 
@@ -17,12 +20,29 @@ from datetime import date
 from pathlib import Path
 from typing import Iterable
 
-from smart_shelf.arch_a.pipeline import Pipeline, combine_shopping_lists
-from smart_shelf.arch_b import BlackboardEngine
 from smart_shelf.common.data_access import save_selection
 from smart_shelf.common.models import ReferenceData, UserProfile
 
 ShoppingList = list[tuple[str, float, str]]        # (ingredient name, quantity, unit)
+
+
+def _missing(error: ModuleNotFoundError, package: str) -> bool:
+    """True only when the architecture's package itself isn't there (not some other bug)."""
+    return error.name is not None and (error.name == package or package.startswith(error.name + "."))
+
+
+try:
+    from smart_shelf.arch_a.pipeline import Pipeline, combine_shopping_lists
+except ModuleNotFoundError as error:
+    if not _missing(error, "smart_shelf.arch_a"):
+        raise
+    Pipeline = None
+try:
+    from smart_shelf.arch_b import BlackboardEngine
+except ModuleNotFoundError as error:
+    if not _missing(error, "smart_shelf.arch_b"):
+        raise
+    BlackboardEngine = None
 
 
 class PipeAndFilterBackend:
@@ -95,8 +115,8 @@ class BlackboardBackend:
         return self.result.combined_shopping_list
 
 
-# The label shown in the sidebar switch -> the class that does the work.
-BACKENDS = {
-    "A: Pipe-and-Filter": PipeAndFilterBackend,
-    "B: Blackboard": BlackboardBackend,
-}
+# The label shown in the sidebar -> the class that does the work, for each architecture present.
+BACKENDS = {label: cls for label, cls, present in [
+    ("A: Pipe-and-Filter", PipeAndFilterBackend, Pipeline is not None),
+    ("B: Blackboard", BlackboardBackend, BlackboardEngine is not None),
+] if present}
