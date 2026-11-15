@@ -1,6 +1,6 @@
 """Filter 8 - Preference Weighting: favor recipes and cuisines the user picked before.
 
-Reads only this user's own history from the run context (Privacy).
+Reads only this user's own history (Privacy).
 """
 from collections import Counter
 
@@ -9,13 +9,18 @@ from smart_shelf.arch_a.config import (
 )
 from smart_shelf.arch_a.filter_base import Filter
 from smart_shelf.arch_a.records import RecipeRecord
+from smart_shelf.arch_a.stores import RECIPE_DATABASE, USER_PROFILE
 
 
 class PreferenceFilter(Filter):
+    # The Recipe Database gives the cuisine of each recipe in the user's history.
+    reads = frozenset({USER_PROFILE, RECIPE_DATABASE})
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        cuisine_of = {r.id: r.cuisine for r in self.ref.recipes}
-        history = self.ctx.profile.history if self.ctx else ()
+        cuisine_of = {r.id: r.cuisine for r in self.stores.recipes}
+        profile = self.stores.profile
+        history = profile.history if profile else ()
         self.recipe_counts = Counter(h.recipe_id for h in history)
         self.cuisine_counts = Counter(cuisine_of[h.recipe_id] for h in history
                                       if h.recipe_id in cuisine_of)

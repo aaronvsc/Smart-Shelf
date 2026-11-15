@@ -4,21 +4,24 @@ from __future__ import annotations
 import threading
 from typing import Iterable
 
-from smart_shelf.common.models import ReferenceData
+from smart_shelf.common.models import ReferenceData, UserProfile
 from smart_shelf.arch_a.pipe import Pipe
-from smart_shelf.arch_a.records import END, ExclusionSummary, RunContext
+from smart_shelf.arch_a.records import END, ExclusionSummary
+from smart_shelf.arch_a.stores import StoreView
 
 
 class Filter(threading.Thread):
     # Items of these types are forwarded untouched (the Dietary summary).
     passthrough_types: tuple[type, ...] = (ExclusionSummary,)
+    # Data stores this filter may read (Figure 1's data-access arrows). Empty = none.
+    reads: frozenset[str] = frozenset()
 
-    def __init__(self, inp: Pipe, out: Pipe, ctx: RunContext | None, ref: ReferenceData):
+    def __init__(self, inp: Pipe | None, out: Pipe, ref: ReferenceData,
+                 profile: UserProfile | None = None):
         super().__init__(name=type(self).__name__, daemon=True)
         self.inp = inp
         self.out = out
-        self.ctx = ctx
-        self.ref = ref
+        self.stores = StoreView(ref, profile, self.reads, self.name)
         self.error: BaseException | None = None
 
     def run(self) -> None:

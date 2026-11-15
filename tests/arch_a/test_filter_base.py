@@ -56,7 +56,7 @@ def test_exclusion_summary_passes_through_untouched(run_filter):
 
 def test_end_marker_is_sent_even_when_the_filter_fails(ref):
     inp, out = Pipe(), Pipe()
-    f = Boom(inp, out, None, ref)
+    f = Boom(inp, out, ref)
     f.start()
     inp.put(1)
     inp.close()
