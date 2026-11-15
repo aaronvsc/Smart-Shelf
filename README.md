@@ -179,8 +179,10 @@ ranking recommendations, and record history after an explicit selection.
 
 ### Why we selected Architecture A
 
-A's fixed order makes it easier to inspect when dietary screening runs and
-which stages affect a recommendation. Each swap starts a fresh run, so A
+The submitted proposal prioritizes reliability, consistency, robustness and
+traceability. A's fixed order makes it easier to inspect when dietary screening
+runs and which stages affect a recommendation. Stable recipe IDs break ranking
+ties in both options, and both expose the match breakdown. Each swap starts a fresh run, so A
 has fewer state-invalidation rules to maintain. Its threaded filters still
 require explicit completion and error handling. B offers independently testable
 knowledge sources and incremental updates, with additional scheduling and
@@ -194,7 +196,8 @@ Rejecting olive oil for R047 activated five B sources, with a 355.093 ms
 median versus 37.499 ms for A's full rerun. B copies region snapshots, which
 adds work even when early results are reused. These measurements cover engine
 execution on one machine. They exclude browser rendering and use a fixed
-analysis date. Run the script on the supported Python 3.12 environment to
+analysis date. The proposal's two-second target applies to the user-visible
+flow, so these timings measure only the engine portion. Run the script on the supported Python 3.12 environment to
 reproduce the comparison on your machine.
 
 ### Differences between the two implementations
@@ -216,11 +219,14 @@ reproduce the comparison on your machine.
 
 ### Changes from the proposal
 
-The two candidate styles were retained. The final B implementation uses a
-validated dependency graph and fixed-priority scheduling to keep repeated runs
-deterministic. Swap feedback reuses valid regions, while explicit selection
-events keep profile writes tied to the user's action. The shared interaction
-changes below apply to both implementations.
+The two candidate styles and the preference for A were retained from the
+proposal. The final release uses a synchronous pantry submission in A, followed
+by nine worker filters, so the caller can handle normalization feedback before
+starting the remaining workers. In B, Streamlit keeps a `BlackboardEngine` in
+session state and goes through that facade for all board operations. The engine
+centralizes input validation, incremental updates and history deduplication.
+The shopping list in both implementations aggregates quantities across selected
+recipes before subtracting pantry stock, so one item cannot be counted twice.
 
 Changes to the shared data layer and UI during implementation (Aaron):
 
