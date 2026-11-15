@@ -1,0 +1,31 @@
+Smart-Shelf - Unselected (Architecture B: Blackboard)
+====================================================
+
+Needs Python 3.12 or newer (https://www.python.org/downloads/) and an internet
+connection the first time, to install packages.
+
+Run it (one click):
+  Mac:      double-click run_mac.command  (first time: right-click > Open)
+  Linux:    ./run_linux.sh
+  Windows:  double-click run_windows.bat
+The app opens at http://localhost:8501. The first run takes about a minute.
+
+Run it by hand (Mac/Linux; on Windows use .venv\Scripts\python):
+  python3 -m venv .venv
+  .venv/bin/python -m pip install -r requirements.txt
+  .venv/bin/python -m streamlit run smart_shelf/ui/app.py
+
+Run the tests:
+  .venv/bin/python -m pytest
+
+Command-line demo (Architecture B only):
+  .venv/bin/python -m smart_shelf.arch_b --pantry docs/architecture_b/pantry_demo.json
+
+Folders:
+  smart_shelf/   source code (arch_b, the shared common/ code and the ui/)
+  compiled/      the same code compiled to Python 3.12 bytecode (.pyc)
+  data/          recipes, ingredients, substitutions and the sample profile
+  tests/         automated tests for this architecture
+
+Using the app saves profile changes to data/user_profiles/. Delete that folder
+to start again from the clean sample profile.

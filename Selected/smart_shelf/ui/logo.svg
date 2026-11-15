@@ -1,0 +1,50 @@
+<!-- Smart-Shelf logo: a pantry shelf (left) and a network (right), shown in the sidebar. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <g fill="none" stroke="#3B82F6" stroke-width="4" stroke-linejoin="miter">
+    <!-- left hemisphere: a pantry shelf -->
+    <path d="M47,14 L33,14 L21,21 L14,33 L14,46 L10,57 L15,70 L27,80 L39,84 L47,80 Z"/>
+    <!-- right hemisphere: the "smart" side -->
+    <path d="M53,14 L67,14 L79,21 L86,33 L86,46 L90,57 L85,70 L73,80 L61,84 L53,80 Z"/>
+  </g>
+  <!-- shelves -->
+  <g stroke="#3B82F6" stroke-width="3">
+    <line x1="14" y1="40" x2="47" y2="40"/>
+    <line x1="12" y1="62" x2="47" y2="62"/>
+  </g>
+  <!-- items on the shelves: jars, a bottle, boxes -->
+  <g fill="#3B82F6">
+    <rect x="21" y="28" width="8" height="2"/>
+    <rect x="22" y="31" width="6" height="9"/>
+    <rect x="31" y="32" width="6" height="8"/>
+    <rect x="41" y="24" width="2" height="5"/>
+    <rect x="39" y="29" width="6" height="11"/>
+    <rect x="18" y="50" width="11" height="2"/>
+    <rect x="19" y="53" width="9" height="9"/>
+    <rect x="31" y="47" width="5" height="15"/>
+    <rect x="39" y="53" width="5" height="9"/>
+    <rect x="28" y="70" width="7" height="8"/>
+    <rect x="37" y="66" width="2" height="4"/>
+    <rect x="36" y="70" width="5" height="8"/>
+  </g>
+  <g stroke="#3B82F6" stroke-width="3">
+    <line x1="25" y1="79.5" x2="47" y2="79.5"/>
+  </g>
+  <!-- neural links -->
+  <g stroke="#3B82F6" stroke-width="2.5" opacity="0.75">
+    <polyline points="60,28 72,26 79,38 68,46 60,28" fill="none"/>
+    <line x1="68" y1="46" x2="81" y2="55"/>
+    <line x1="68" y1="46" x2="61" y2="60"/>
+    <line x1="61" y1="60" x2="74" y2="68"/>
+    <line x1="81" y1="55" x2="74" y2="68"/>
+    <line x1="79" y1="38" x2="81" y2="55"/>
+  </g>
+  <g fill="#3B82F6">
+    <rect x="57" y="25" width="6" height="6"/>
+    <rect x="69" y="23" width="6" height="6"/>
+    <rect x="76" y="35" width="6" height="6"/>
+    <rect x="65" y="43" width="6" height="6"/>
+    <rect x="78" y="52" width="6" height="6"/>
+    <rect x="58" y="57" width="6" height="6"/>
+    <rect x="71" y="65" width="6" height="6"/>
+  </g>
+</svg>
