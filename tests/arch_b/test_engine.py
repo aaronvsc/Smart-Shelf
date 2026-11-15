@@ -147,6 +147,25 @@ def test_selection_combines_total_demand_without_double_spending_pantry(ref, pro
         engine.select(["R4"], "click-1")
 
 
+def test_selection_counts_scale_the_list_but_history_records_each_recipe_once(
+        ref, profile, tmp_path, today):
+    save_profile(profile, tmp_path)
+    engine = BlackboardEngine(ref, profiles_dir=tmp_path)
+    engine.run([{"name": "rice", "qty": 150, "unit": "g"}], profile, today=today)
+    # Rice pudding twice (2 x 150 g rice, 2 x 100 ml milk) plus plain rice once (100 g).
+    result = engine.select(["R4", "R2"], "click-1", counts={"R2": 2})
+    assert result.combined_shopping_list == [("milk", 200, "ml"), ("rice", 250, "g")]
+    assert len(load_profile(profile.user_id, tmp_path).history) == 2
+    # Changing only the counts on the same click rebuilds the list without new history.
+    again = engine.select(["R4", "R2"], "click-1", counts={"R2": 3})
+    assert again.combined_shopping_list == [("milk", 300, "ml"), ("rice", 400, "g")]
+    assert again.activations == ("ShoppingListBuilder",)
+    assert len(load_profile(profile.user_id, tmp_path).history) == 2
+    for bad in ({"R2": 0}, {"R2": 1.5}, {"R3": 2}):
+        with pytest.raises(ValueError, match="Counts"):
+            engine.select(["R4", "R2"], "click-2", counts=bad)
+
+
 def test_failed_history_save_can_be_retried(ref, rows, profile):
     calls = []
 
