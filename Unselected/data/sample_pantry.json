@@ -1,0 +1,7 @@
+[
+  {"name": "rice", "qty": 400, "unit": "g"},
+  {"name": "egg", "qty": 4, "unit": "count"},
+  {"name": "olive oil", "qty": 100, "unit": "ml"},
+  {"name": "onion", "qty": 2, "unit": "count"},
+  {"name": "soy sauce", "qty": 50, "unit": "ml"}
+]
