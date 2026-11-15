@@ -110,6 +110,17 @@ def test_combined_shopping_list_pools_the_pantry(run, ref):
                         "soy sauce": (15, "ml"), "chicken": (200, "g")}
 
 
+def test_combined_shopping_list_scales_by_how_many_times_a_recipe_is_made(run, ref):
+    # F004 three times (3 x 185 g rice) plus F005 once (185 g), minus the 100 g on hand.
+    result = run([{"name": "rice", "qty": 100, "unit": "g"}])
+    combined = {name: (qty, unit) for name, qty, unit in
+                combine_shopping_lists(result, ["F004", "F005"], ref, counts={"F004": 3})}
+    assert combined == {"rice": (640, "g"), "egg": (6, "count"), "onion": (4, "count"),
+                        "soy sauce": (45, "ml"), "chicken": (200, "g")}
+    assert combine_shopping_lists(result, ["F004"], ref, counts={"F004": 1}) == \
+        combine_shopping_lists(result, ["F004"], ref)
+
+
 def test_combined_shopping_list_skips_what_the_pantry_covers(run, ref):
     result = run([{"name": "rice", "qty": 1000, "unit": "g"}])
     combined = dict((name, qty) for name, qty, _ in

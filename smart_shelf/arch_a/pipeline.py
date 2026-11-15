@@ -89,18 +89,22 @@ class Pipeline:
 
 
 def combine_shopping_lists(result: PipelineResult, selected_ids: Iterable[str],
-                           ref: ReferenceData) -> list[tuple[str, float, str]]:
+                           ref: ReferenceData, counts: dict[str, int] | None = None
+                           ) -> list[tuple[str, float, str]]:
     """Step 5: one shopping list (name, qty, unit) for all the selected recipes.
 
     The pantry is shared, so we add up what every selected recipe needs first
     and subtract the pantry once. Summing each recipe's own shortfall would let
-    two recipes both "use" the same cup of rice.
+    two recipes both "use" the same cup of rice. `counts` says how many times
+    to make a recipe (e.g. {"R003": 3}); recipes left out are made once.
     """
     selected = set(selected_ids)
+    counts = counts or {}
     demand: dict[str, float] = {}
     for record in result.ranked:
         if record.recipe.id not in selected:
             continue
+        times = counts.get(record.recipe.id, 1)
         gaps = {gap.name: gap for gap in record.missing}
         for item in record.recipe.ingredients:
             gap = gaps.get(item.name)
@@ -110,10 +114,10 @@ def combine_shopping_lists(result: PipelineResult, selected_ids: Iterable[str],
             if item.name in record.substitutions:
                 name = record.substitutions[item.name]
                 sub = next(s for s in ref.substitutes[item.name] if s.name == name)
-                demand[item.name] = demand.get(item.name, 0.0) + need - gap.short_qty
-                demand[name] = demand.get(name, 0.0) + gap.short_qty * sub.ratio
+                demand[item.name] = demand.get(item.name, 0.0) + (need - gap.short_qty) * times
+                demand[name] = demand.get(name, 0.0) + gap.short_qty * sub.ratio * times
             else:
-                demand[item.name] = demand.get(item.name, 0.0) + need
+                demand[item.name] = demand.get(item.name, 0.0) + need * times
     combined = []
     for name, qty in sorted(demand.items()):
         short = qty - (result.pantry[name].qty if name in result.pantry else 0.0)
