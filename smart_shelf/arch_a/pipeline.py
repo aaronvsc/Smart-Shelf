@@ -13,12 +13,12 @@ from smart_shelf.arch_a.filters import (
 )
 from smart_shelf.common.models import ReferenceData, UserProfile
 from smart_shelf.arch_a.pipe import Pipe
-from smart_shelf.arch_a.records import (
-    END, ExclusionSummary, NormalizedPantry, PipelineResult, RecipeRecord, RunContext,
-)
+from smart_shelf.arch_a.records import END, ExclusionSummary, PipelineResult, RecipeRecord
+from smart_shelf.arch_a.stores import read_only
 
-# Filters 2-10, in order. Filter 1 (Normalize) runs synchronously first so that
-# unrecognized items come straight back to the UI (the "Submit pantry" call).
+# Filters 2-10, in order, connected by pipes p2-p10. Filter 1 (Normalize) is called
+# first, like Figure 1's "submit pantry" procedure call: unrecognized items come
+# straight back to the caller, and the usable pantry goes down p1.
 DEFAULT_FILTERS: tuple[type[Filter], ...] = (
     MatchFilter, DietaryFilter, GapsFilter, SubstituteFilter, NutritionFilter,
     FreshnessFilter, PreferenceFilter, RankFilter, ShoppingListFilter,
@@ -33,7 +33,7 @@ class Pipeline:
     def __init__(self, ref: ReferenceData,
                  filter_classes: Sequence[type[Filter]] = DEFAULT_FILTERS,
                  timeout_s: float = 10.0):
-        self.ref = ref
+        self.ref = read_only(ref)
         self.filter_classes = tuple(filter_classes)
         self.timeout_s = timeout_s
 
@@ -45,22 +45,20 @@ class Pipeline:
         if profile is None:
             raise ValueError("A user profile is required; refusing to run without "
                              "the user's restrictions")
-        self.ref.check_restrictions(profile)
 
-        pantry, unrecognized = NormalizeFilter.normalize(raw_pantry, self.ref)
+        pipes = [Pipe(f"p{i + 1}") for i in range(len(self.filter_classes) + 1)]   # p1-p10
+        normalize = NormalizeFilter(None, pipes[0], self.ref)
+        pantry, unrecognized = normalize.submit(raw_pantry, profile.all_restrictions,
+                                                rejected_subs, today or date.today())
         if not pantry:
             return PipelineResult("empty_pantry", unrecognized=unrecognized,
                                   elapsed_s=time.perf_counter() - start)
 
-        ctx = RunContext(pantry, profile, frozenset(map(tuple, rejected_subs)),
-                         today or date.today())
-        pipes = [Pipe(f"p{i + 1}") for i in range(len(self.filter_classes) + 1)]
-        filters = [cls(pipes[i], pipes[i + 1], ctx, self.ref)
+        # The profile is the User Profile store; only filters that declare it can read it.
+        filters = [cls(pipes[i], pipes[i + 1], self.ref, profile)
                    for i, cls in enumerate(self.filter_classes)]
         for f in filters:
             f.start()
-        pipes[0].put(NormalizedPantry(pantry))
-        pipes[0].close()
 
         ranked: list[RecipeRecord] = []
         exclusions: ExclusionSummary | None = None

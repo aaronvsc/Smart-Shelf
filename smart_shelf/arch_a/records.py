@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
+from types import MappingProxyType
+from typing import Mapping
 
-from smart_shelf.common.models import Nutrition, PantryItem, Recipe, UserProfile
+from smart_shelf.common.models import Nutrition, PantryItem, Recipe
 
 
 class _EndOfStream:
@@ -17,18 +19,20 @@ END = _EndOfStream()
 
 
 @dataclass(frozen=True)
-class RunContext:
-    """Read-only input for one pipeline run, handed to every filter at setup."""
-    pantry: dict[str, PantryItem]                       # normalized, keyed by ingredient name
-    profile: UserProfile
-    rejected_subs: frozenset[tuple[str, str]] = frozenset()   # (recipe_id, substitute name)
-    today: date = field(default_factory=date.today)
-
-
-@dataclass(frozen=True)
 class NormalizedPantry:
-    """What p1 carries from Parse & Normalize to Match Recipes."""
-    items: dict[str, PantryItem]
+    """What p1 carries from Parse & Normalize to Match Recipes: the submitted pantry
+    plus the rest of the run's input (restrictions, substitute decisions, date).
+
+    Match attaches it to every record, so later filters read the run's input from
+    the stream itself rather than from shared state. Read-only.
+    """
+    items: Mapping[str, PantryItem]                         # normalized, keyed by ingredient name
+    restrictions: tuple[str, ...] = ()                      # the user's diets + allergies
+    rejected_subs: frozenset[tuple[str, str]] = frozenset()  # (recipe_id, substitute name)
+    today: date | None = None
+
+    def __post_init__(self):
+        object.__setattr__(self, "items", MappingProxyType(dict(self.items)))
 
 
 @dataclass(frozen=True)
@@ -50,7 +54,18 @@ class Gap:
 
 @dataclass
 class RecipeRecord:
-    """One recipe streaming through filters 2-10; each filter adds its results."""
+    """One recipe streaming through filters 2-10; each filter adds its results.
+
+    Match also attaches two values that travel with the record. They are plain
+    attributes, not dataclass fields, so results stay field-for-field comparable
+    with Architecture B:
+      run:   the NormalizedPantry this record was matched from
+      needs: each recipe ingredient's quantity in base units, as (qty, unit),
+             in the same order as recipe.ingredients (None if it can't convert)
+    """
+    run = None
+    needs = None
+
     recipe: Recipe
     on_hand: list[str] = field(default_factory=list)
     missing: list[Gap] = field(default_factory=list)

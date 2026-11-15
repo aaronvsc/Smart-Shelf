@@ -5,6 +5,7 @@ do not depend on the team's real data files.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 
 import pytest
@@ -13,8 +14,9 @@ from smart_shelf.common.models import (
     Ingredient, Nutrition, PantryItem, Recipe, RecipeIngredient, ReferenceData,
     SelectionEntry, Substitute, UserProfile,
 )
+from smart_shelf.arch_a.filters.f02_match import recipe_needs
 from smart_shelf.arch_a.pipe import Pipe
-from smart_shelf.arch_a.records import END, RecipeRecord, RunContext
+from smart_shelf.arch_a.records import END, NormalizedPantry, RecipeRecord
 
 TODAY = date(2026, 10, 26)
 
@@ -106,6 +108,22 @@ def profiles():
     return PROFILES
 
 
+@dataclass(frozen=True)
+class FilterInput:
+    """What a filter sees in a real run: the run's input (sent down p1, then carried
+    by every record) and the user profile (for filters with profile access)."""
+    run: NormalizedPantry
+    profile: UserProfile
+
+    @property
+    def pantry(self):
+        return self.run.items
+
+    @property
+    def today(self):
+        return self.run.today
+
+
 @pytest.fixture
 def make_ctx(ref):
     def _make(pantry: dict[str, float] | None = None, profile: str = "default",
@@ -114,7 +132,9 @@ def make_ctx(ref):
         expires = expires or {}
         items = {n: PantryItem(n, q, ref.ingredients[n].base_unit, expires.get(n))
                  for n, q in (pantry or {}).items()}
-        return RunContext(items, PROFILES[profile], frozenset(rejected_subs), today)
+        prof = PROFILES[profile]
+        return FilterInput(NormalizedPantry(items, prof.all_restrictions,
+                                            frozenset(rejected_subs), today), prof)
     return _make
 
 
@@ -126,12 +146,21 @@ def make_record(ref):
 
 @pytest.fixture
 def run_filter(ref):
-    """Run one filter alone on a list of items and return everything it sends out."""
+    """Run one filter alone on a list of items and return everything it sends out.
+
+    Records made directly in a test get what Match would have attached: the run's
+    input and the recipe's base-unit quantities.
+    """
     def _run(filter_cls, items, ctx):
         inp, out = Pipe("in"), Pipe("out")
-        f = filter_cls(inp, out, ctx, ref)
+        f = filter_cls(inp, out, ref, ctx.profile if ctx else None)
         f.start()
         for item in items:
+            if isinstance(item, RecipeRecord):
+                if item.run is None and ctx is not None:
+                    item.run = ctx.run
+                if item.needs is None:
+                    item.needs = recipe_needs(item.recipe, ref)
             inp.put(item)
         inp.close()
         results = []
