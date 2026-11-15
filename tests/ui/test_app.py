@@ -92,21 +92,54 @@ def results(architecture="A: Pipe-and-Filter", pantry=None):
 
 
 def cards(app):
-    return [m.value for m in app.main.markdown if m.value.startswith("**")]
+    """The recipe cards' titles; each title is the checkbox for choosing that recipe."""
+    return [c.label for c in app.main.checkbox if c.key.startswith("choose_")]
+
+
+def checked(app):
+    return sorted(c.key.removeprefix("choose_") for c in app.main.checkbox
+                  if c.key.startswith("choose_") and c.value)
+
+
+def button(app, starts_with):
+    return next(b for b in app.button if b.label.startswith(starts_with))
 
 
 @pytest.mark.parametrize("architecture", list(BACKENDS))
-def test_results_show_the_top_ten_cards(architecture):
+def test_results_show_and_check_the_top_ten(architecture):
     app = results(architecture)
     assert cards(app)[0] == "**1. Spaghetti Marinara**"
-    assert len(cards(app)) == 10
+    assert len(cards(app)) == 10 and len(checked(app)) == 10
+    assert any("Only the recipes you check go on" in m.value for m in app.main.markdown)
+    assert button(app, "Review substitutes").label == "Review substitutes for 10 recipes"
     assert any("Hidden for your diet (" in m.value for m in app.main.markdown)
 
 
-def test_show_more_adds_ten_cards():
+def test_show_top_shows_more_without_checking_them():
     app = results()
-    next(b for b in app.button if b.label == "Show 10 more").click().run()
+    app.selectbox(key="show_top").select(20).run()
     assert len(cards(app)) == 20
+    assert len(checked(app)) == 10
+    app.selectbox(key="show_top").select("All").run()
+    assert len(cards(app)) == len(app.session_state["result"].ranked)
+
+
+def test_checking_and_unchecking_changes_what_goes_on():
+    app = results()
+    app.selectbox(key="show_top").select(20).run()
+    app.checkbox(key="choose_R147").check().run()
+    app.checkbox(key="choose_R003").uncheck().run()
+    assert "R147" in checked(app) and "R003" not in checked(app)
+    assert button(app, "Review substitutes").label == "Review substitutes for 10 recipes"
+    app.selectbox(key="show_top").select(10).run()                # hidden, but still chosen
+    assert "R147" in app.session_state["chosen"]
+
+
+def test_nothing_checked_means_no_review():
+    app = results()
+    for key in checked(app):
+        app.checkbox(key=f"choose_{key}").uncheck().run()
+    assert button(app, "Review substitutes").disabled
 
 
 def test_every_recipe_breaking_the_diet_explains_why():
@@ -156,9 +189,15 @@ def test_app_works_on_a_copy_of_the_sample_profiles(saved_profiles):
 
 # ----------------------------------------------------------- step 4: substitutes
 
-def substitutes(architecture):
+def substitutes(architecture, uncheck=(), check=()):
     app = results(architecture)
-    next(b for b in app.button if b.label == "Review substitutes").click().run()
+    if check:
+        app.selectbox(key="show_top").select(20).run()
+    for rid in uncheck:
+        app.checkbox(key=f"choose_{rid}").uncheck().run()
+    for rid in check:
+        app.checkbox(key=f"choose_{rid}").check().run()
+    button(app, "Review substitutes").click().run()
     assert not app.exception
     return app
 
@@ -168,23 +207,27 @@ def choice_keys(app):
 
 
 @pytest.mark.parametrize("architecture", list(BACKENDS))
-def test_review_lists_swaps_from_the_shown_recipes(architecture):
-    app = substitutes(architecture)
+def test_review_lists_swaps_only_for_chosen_recipes(architecture):
+    app = substitutes(architecture, uncheck=["R002"], check=["R147"])
     assert titles(app) == ["## Review substitutes"]
-    assert "sub_R003_tomato" in choice_keys(app)
+    keys = choice_keys(app)
+    assert "sub_R003_tomato" in keys and "sub_R147_olive oil" in keys
+    assert "sub_R002_olive oil" not in keys
     assert all(r.value == "Accept" for r in app.main.radio)
-    assert any("Updated rankings" in m.value for m in app.main.markdown)
+    assert any("Swaps for the 10 recipes you chose" in m.value for m in app.main.markdown)
 
 
 @pytest.mark.parametrize("architecture", list(BACKENDS))
-def test_rejecting_a_swap_reranks_and_can_be_undone(architecture):
+def test_rejecting_a_swap_reranks_only_the_chosen_recipes(architecture):
     app = substitutes(architecture)
     app.radio(key="sub_R003_tomato").set_value("Reject").run()
     assert not app.exception
     r003 = next(r for r in app.session_state["result"].ranked if r.recipe.id == "R003")
     assert "canned tomatoes" not in r003.substitutions
     assert app.radio(key="sub_R003_tomato").value == "Reject"        # still listed, to undo
-    assert any("down from #" in m.value for m in app.main.markdown)
+    ranking = [m.value for m in app.main.markdown if m.value[:1].isdigit()]
+    assert len(ranking) == 10                                       # only the chosen recipes
+    assert any("Spaghetti Marinara" in line and "down from #1" in line for line in ranking)
 
     app.radio(key="sub_R003_tomato").set_value("Accept").run()
     r003 = next(r for r in app.session_state["result"].ranked if r.recipe.id == "R003")
@@ -194,8 +237,8 @@ def test_rejecting_a_swap_reranks_and_can_be_undone(architecture):
 def test_new_search_forgets_old_choices():
     app = substitutes("A: Pipe-and-Filter")
     app.radio(key="sub_R003_tomato").set_value("Reject").run()
-    next(b for b in app.button if b.label == "< Back to results").click().run()
-    next(b for b in app.button if b.label == "< Back to pantry").click().run()
+    button(app, "< Back to results").click().run()
+    button(app, "< Back to pantry").click().run()
     find_button(app).click().run()
     assert "rejected" not in app.session_state
     assert not any(str(k).startswith("sub_") for k in app.session_state)
@@ -206,21 +249,30 @@ def test_new_search_forgets_old_choices():
 SAVE = "Save picks and make shopping list"
 
 
-def pick_screen(architecture):
-    app = substitutes(architecture)
-    next(b for b in app.button if b.label == "Choose recipes").click().run()
+def pick_screen(architecture, **chosen):
+    app = substitutes(architecture, **chosen)
+    button(app, "Choose recipes").click().run()
     assert not app.exception
     assert titles(app) == ["## Pick what you're cooking"]
     return app
 
 
-def save_button(app):
-    return next(b for b in app.button if b.label == SAVE)
+def picks(app):
+    return sorted(c.key.removeprefix("pick_") for c in app.main.checkbox
+                  if c.key.startswith("pick_") and c.value)
 
 
-def test_save_is_disabled_until_something_is_picked():
+def test_step_five_starts_with_every_chosen_recipe_checked():
+    app = pick_screen("A: Pipe-and-Filter", uncheck=["R002"], check=["R147"])
+    assert len(picks(app)) == 10
+    assert "R147" in picks(app) and "R002" not in picks(app)
+
+
+def test_save_is_disabled_when_everything_is_unchecked():
     app = pick_screen("A: Pipe-and-Filter")
-    assert save_button(app).disabled
+    for rid in picks(app):
+        app.checkbox(key=f"pick_{rid}").uncheck().run()
+    assert button(app, SAVE).disabled
 
 
 @pytest.mark.parametrize("architecture", list(BACKENDS))
@@ -228,9 +280,10 @@ def test_saving_picks_records_history_once_and_lists_what_to_buy(architecture, s
     from smart_shelf.common.data_access import load_profile
     app = pick_screen(architecture)
     before = len(load_profile("demo", saved_profiles).history)
-    app.checkbox(key="pick_R002").check().run()
-    app.checkbox(key="pick_R004").check().run()
-    save_button(app).click().run()
+    for rid in picks(app):
+        if rid not in ("R002", "R004"):
+            app.checkbox(key=f"pick_{rid}").uncheck().run()
+    button(app, SAVE).click().run()
     assert not app.exception
     app.run()                                                       # a plain rerun saves nothing new
     history = load_profile("demo", saved_profiles).history
@@ -238,27 +291,26 @@ def test_saving_picks_records_history_once_and_lists_what_to_buy(architecture, s
     assert app.session_state["saved_picks"][1] == [("parmesan", 50.0, "g")]
     assert any(m.value == "parmesan, 50 g" for m in app.main.markdown)
     assert any("Saved to your history" in s.value for s in app.success)
-    assert save_button(app).disabled                                # no double save by clicking again
+    assert button(app, SAVE).disabled                               # no double save by clicking again
 
 
 def test_both_architectures_make_the_same_shopping_list():
     lists = []
     for architecture in BACKENDS:
         app = pick_screen(architecture)
-        for rid in ("R002", "R004", "R009"):
-            app.checkbox(key=f"pick_{rid}").check().run()
-        save_button(app).click().run()
+        button(app, SAVE).click().run()
         lists.append(app.session_state["saved_picks"])
     assert lists[0] == lists[1]
+    assert len(lists[0][0]) == 10
 
 
 def test_start_over_returns_to_an_empty_search():
     app = pick_screen("A: Pipe-and-Filter")
-    app.checkbox(key="pick_R002").check().run()
-    save_button(app).click().run()
-    next(b for b in app.button if b.label == "Start over").click().run()
+    button(app, SAVE).click().run()
+    button(app, "Start over").click().run()
     assert titles(app) == ["## Enter your pantry"]
     assert "saved_picks" not in app.session_state and "result" not in app.session_state
+    assert "chosen" not in app.session_state
 
 
 # ----------------------------------------------------------- step 1: add ingredient bar
@@ -295,3 +347,73 @@ def test_adding_an_ingredient_puts_it_in_the_table_and_clears_the_bar():
     assert len(table) == 9
     assert app.selectbox(key="add_name").value is None
     assert any("All 9 items ready." in m.value for m in app.main.markdown)
+
+
+# ----------------------------------------------------------- step 3: custom show-top number
+# AppTest can't type into a dropdown, so these store what typing would, while the
+# results screen is off-screen (AppTest can't redraw a dropdown with a new value).
+
+def results_with_typed_top(typed):
+    app = results()
+    button(app, "< Back to pantry").click().run()
+    app.session_state["show_top"] = typed
+    app.session_state["step"] = 3
+    app.run()
+    assert not app.exception
+    return app
+
+def test_show_top_accepts_a_typed_number():
+    app = results_with_typed_top("35")
+    assert len(cards(app)) == 35
+    assert len(checked(app)) == 10
+    assert app.selectbox(key="show_top").options == ["10", "20", "35", "50", "All"]
+
+
+def test_show_top_rejects_text_that_is_not_a_number():
+    app = results_with_typed_top("lots")
+    assert len(cards(app)) == 10
+    assert any("isn't a number of recipes" in w.value for w in app.warning)
+    assert app.selectbox(key="show_top").value == 10
+
+
+# ----------------------------------------------------------- step 5: details beside each pick
+
+@pytest.mark.parametrize("architecture", list(BACKENDS))
+def test_step_five_shows_rank_match_and_what_is_still_needed(architecture):
+    app = pick_screen(architecture)
+    labels = [c.label for c in app.main.checkbox if c.key.startswith("pick_")]
+    assert labels[0] == "**1. Spaghetti Marinara** | 90% match | 25 min"
+    assert all(f"**{n}. " in label and "% match" in label for n, label in enumerate(labels, start=1))
+    needs = [m.value for m in app.main.markdown if m.value.startswith("<div class='pick-need'>")]
+    assert len(needs) == len(labels)
+    assert any("Ready to cook. Nothing to buy." in n for n in needs)
+    assert any("Still need: parmesan (50 g)" in n for n in needs)
+
+
+# ----------------------------------------------------------- step 3: plain-language score
+
+@pytest.mark.parametrize("architecture", list(BACKENDS))
+def test_ranking_explanation_is_plain_and_adds_up(architecture):
+    import re
+    app = results(architecture)
+    first = app.main.expander[0]
+    assert first.label == "Why it's ranked #1"
+    text = first.markdown[0].value
+    assert "You have 4 of the 5 main ingredients." in text
+    assert "covered by a substitute (tomato for canned tomatoes)" in text
+    assert "Optional, and fine to skip: basil, salt." in text
+    # The four bold numbers: match points, freshness bonus, history bonus, total.
+    match, fresh, liked, total = [float(n) for n in re.findall(r"([\d.]+)(?: points)?\.\*\*", text)]
+    assert round(match + fresh + liked, 1) == total
+
+
+# ----------------------------------------------------------- step 4: swap order
+
+@pytest.mark.parametrize("architecture", list(BACKENDS))
+def test_swaps_are_listed_in_ranked_order_and_stay_put(architecture):
+    app = substitutes(architecture)
+    first = choice_keys(app)
+    # Ranked order: #1 Spaghetti Marinara, #2 Scrambled Eggs, #4 Penne alla Vodka Style, ...
+    assert first[:3] == ["sub_R003_tomato", "sub_R002_olive oil", "sub_R079_milk"]
+    app.radio(key="sub_R003_tomato").set_value("Reject").run()     # R003 drops in the ranking
+    assert choice_keys(app)[:3] == first[:3]                         # but its card doesn't move

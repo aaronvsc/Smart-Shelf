@@ -54,6 +54,7 @@ button[kind="primary"] p {color: #0D1117; font-weight: 600;}
         text-transform: uppercase; margin-bottom: 2px;}
 .muted {color: #8B949E;}
 .score {font-size: 1.6rem; font-weight: 700; line-height: 1; text-align: right; color: #3B82F6;}
+.pick-need {color: #8B949E; margin: -10px 0 12px 28px; font-size: 0.9rem;}
 .score-label {font-size: 0.7rem; letter-spacing: 0.14em; color: #8B949E; text-align: right;}
 .steps div {padding: 6px 0 6px 12px; border-left: 2px solid #30363D; color: #6E7681;}
 .steps div.done {color: #8B949E;}
@@ -99,10 +100,10 @@ def split_rules(ref):
 
 def clear_run():
     """Forget the last search: its backend, results and substitute choices."""
-    for key in ("backend", "result", "problem", "shown", "rejected", "ranking_before",
-                "pending_pick", "saved_picks"):
+    for key in ("backend", "result", "problem", "chosen", "show_top", "rejected",
+                "ranking_before", "pending_pick", "saved_picks"):
         st.session_state.pop(key, None)
-    for key in [key for key in st.session_state if str(key).startswith(("sub_", "pick_"))]:
+    for key in [key for key in st.session_state if str(key).startswith(("sub_", "pick_", "choose_"))]:
         del st.session_state[key]
 
 
@@ -273,7 +274,6 @@ def find_recipes(ref, profile, diets, allergies, rows):
         result = backend.run(rows, profile)
     clear_run()
     st.session_state.backend, st.session_state.result = backend, result
-    st.session_state.shown = PAGE_SIZE
     st.session_state.unrecognized = result.unrecognized
 
     if result.status == "empty_pantry":
@@ -287,7 +287,9 @@ def find_recipes(ref, profile, diets, allergies, rows):
 
 # ---------------------------------------------------------------- step 3
 
-PAGE_SIZE = 10
+DEFAULT_TOP = 10                      # top recipes shown and checked after a search
+SHOW_TOP = [10, 20, 50, "All"]        # how many ranked recipes step 3 can show
+PREVIEW = 10                          # rows shown before "more" in the hidden-for-diet box
 
 
 def amount(qty, unit):
@@ -295,18 +297,105 @@ def amount(qty, unit):
     return f"{round(qty, 2):g} {unit}"
 
 
-def show_more():
-    st.session_state.shown += PAGE_SIZE
+def chosen_records(result):
+    """The recipes the user checked on step 3, in their current ranked order."""
+    return [record for record in result.ranked if record.recipe.id in st.session_state.chosen]
+
+
+def show_top_options():
+    """The 'Show top' choices, plus the number the user typed, if any.
+
+    A typed value arrives as text. A whole number above 0 becomes a choice in the
+    list; anything else gets a warning and the box goes back to the default.
+    """
+    typed = st.session_state.get("show_top")
+    if typed is None or typed in SHOW_TOP:
+        return SHOW_TOP
+    text = str(typed).strip()
+    if text.isdigit() and int(text) > 0:
+        st.session_state.show_top = int(text)
+        return SHOW_TOP if int(text) in SHOW_TOP else sorted(SHOW_TOP[:-1] + [int(text)]) + ["All"]
+    st.warning(f"\u201c{typed}\u201d isn't a number of recipes, so we're showing the top "
+               f"{DEFAULT_TOP}. Type a whole number like 35.")
+    st.session_state.show_top = DEFAULT_TOP
+    return SHOW_TOP
+
+
+def toggle_choice(recipe_id):
+    if st.session_state[f"choose_{recipe_id}"]:
+        st.session_state.chosen.add(recipe_id)
+    else:
+        st.session_state.chosen.discard(recipe_id)
+
+
+def pantry_match(record):
+    """Score = how well the pantry covers the recipe + freshness boost + history boost,
+    so taking the boosts off leaves the match shown as 'Match %'."""
+    return record.score - record.freshness_boost - record.preference_boost
+
+
+def still_need(record):
+    """'parmesan (50 g), shrimp (200 g)': exactly what's left to buy for one recipe."""
+    return ", ".join(f"{gap.name} ({amount(gap.short_qty, gap.unit)})" for gap in record.to_buy)
+
+
+def points(value):
+    """A score part as points out of 100, to one decimal: 0.9 -> 90.0, 0.025 -> 2.5."""
+    return round(value * 100, 1)
+
+
+def show(pts):
+    """90.0 -> '90', 2.5 -> '2.5'."""
+    return f"{pts:g}"
+
+
+def plural(count, word):
+    return f"{count} {word}" if count == 1 else f"{count} {word}s"
+
+
+def score_explanation(record):
+    """The ranking score in plain words: points for the pantry match, plus small bonuses.
+    The total is the sum of the numbers shown, so it always adds up on screen."""
+    recipe = record.recipe
+    required = [item.name for item in recipe.ingredients if item.required]
+    have = [name for name in record.on_hand if name in required]
+    swaps = ", ".join(f"{use} for {need}" for need, use in record.substitutions.items())
+    optional = [gap.name for gap in record.missing if not gap.required]
+    match, fresh, liked = (points(pantry_match(record)), points(record.freshness_boost),
+                           points(record.preference_boost))
+
+    match_line = (f"**Pantry match: {show(match)} points.** You have {len(have)} of "
+                  f"the {plural(len(required), 'main ingredient')}.")
+    if swaps:
+        count = len(record.substitutions)
+        match_line += (f" {count} more {'is' if count == 1 else 'are'} covered by a substitute "
+                       f"({swaps}), which counts a little less than the real thing.")
+    if record.to_buy:
+        match_line += f" You'd need to buy {plural(len(record.to_buy), 'item')}."
+    fresh_line = (f"**Uses food that expires soon: +{show(fresh)}.** "
+                  + ("It uses something in your pantry that's close to its expiry date."
+                     if fresh else "None of its ingredients expire soon."))
+    liked_line = (f"**Like recipes you've picked before: +{show(liked)}.** "
+                  + ("It's similar to recipes in your history." if liked
+                     else "Nothing similar in your history yet."))
+    total = round(match + fresh + liked, 1)
+    lines = [match_line, fresh_line, liked_line,
+             f"**Total: {show(total)} points.** Higher totals are ranked first."]
+    if optional:
+        lines.append(f"Optional, and fine to skip: {', '.join(optional)}.")
+    return "\n".join(f"- {line}" for line in lines)
 
 
 def recipe_card(rank, record):
     recipe = record.recipe
-    # Score = how well the pantry covers the recipe + freshness boost + history boost.
-    match = record.score - record.freshness_boost - record.preference_boost
+    match = pantry_match(record)
     with st.container(border=True):
         left, right = st.columns([0.8, 0.2])
         with left:
-            st.markdown(f"**{rank}. {recipe.name}**")
+            key = f"choose_{recipe.id}"
+            st.session_state[key] = recipe.id in st.session_state.chosen
+            st.checkbox(f"**{rank}. {recipe.name}**", key=key, on_change=toggle_choice,
+                        args=(recipe.id,))
             html(f"<span class='muted'>{recipe.cook_time_min} min | {recipe.cuisine} | "
                  f"{record.nutrition.kcal:.0f} kcal</span>")
         with right:
@@ -322,23 +411,10 @@ def recipe_card(rank, record):
                         or "None", unsafe_allow_html=True)
         with to_buy:
             html("<div class='label'>To buy</div>")
-            st.markdown(", ".join(f"{gap.name} ({amount(gap.short_qty, gap.unit)})"
-                                  for gap in record.to_buy) or "Nothing")
+            st.markdown(still_need(record) or "Nothing")
 
-        with st.expander("Score breakdown"):
-            required = sum(item.required for item in recipe.ingredients)
-            optional = [gap.name for gap in record.missing if not gap.required]
-            lines = [
-                f"Pantry match: {match:.3f} ({len(record.on_hand)} on hand, "
-                f"{len(record.substitutions)} substituted, {len(record.to_buy)} to buy, "
-                f"out of {required} required ingredients; a substitute counts a little less)",
-                f"Freshness: +{record.freshness_boost:.3f} (uses food that expires soon)",
-                f"Your history: +{record.preference_boost:.3f} (like recipes you picked before)",
-                f"Total score: {record.score:.3f}",
-            ]
-            if optional:
-                lines.append("Optional, left out: " + ", ".join(optional))
-            st.markdown("\n".join(f"- {line}" for line in lines))
+        with st.expander(f"Why it's ranked #{rank}"):
+            st.markdown(score_explanation(record))
 
 
 def hidden_box(ref, result):
@@ -351,11 +427,11 @@ def hidden_box(ref, result):
             html("<span class='muted'>None</span>")
         rows = [f"{names[rid]} <span class='muted'>({', '.join(reasons)})</span>"
                 for rid, reasons in sorted(excluded.items(), key=lambda item: names[item[0]])]
-        for row in rows[:PAGE_SIZE]:
+        for row in rows[:PREVIEW]:
             html(row)
-        if len(rows) > PAGE_SIZE:
-            with st.expander(f"{len(rows) - PAGE_SIZE} more"):
-                for row in rows[PAGE_SIZE:]:
+        if len(rows) > PREVIEW:
+            with st.expander(f"{len(rows) - PREVIEW} more"):
+                for row in rows[PREVIEW:]:
                     html(row)
 
 
@@ -377,26 +453,42 @@ def screen_results(ref):
         elif result.status == "all_excluded":
             st.info(f"{matched} recipes use your pantry, but every one of them breaks your "
                     "diet or allergies. They're listed on the right.")
-        st.session_state.setdefault("shown", PAGE_SIZE)
-        for rank, record in enumerate(result.ranked[:st.session_state.shown], start=1):
-            recipe_card(rank, record)
-        if len(result.ranked) > st.session_state.shown:
-            st.button(f"Show {PAGE_SIZE} more", on_click=show_more)
+        # The top recipes start checked; only checked ones go on to steps 4 and 5.
+        st.session_state.setdefault(
+            "chosen", {record.recipe.id for record in result.ranked[:DEFAULT_TOP]})
+        if result.ranked:
+            pick_col, note_col = st.columns([0.2, 0.8], vertical_alignment="bottom")
+            # Pick 10/20/50/All or type your own number, e.g. 35.
+            options = show_top_options()
+            top = pick_col.selectbox("Show top", options, key="show_top", accept_new_options=True)
+            shown = result.ranked if top == "All" else result.ranked[:top]
+            note_col.markdown(
+                f"<span class='muted'>Showing {len(shown)} of {len(result.ranked)}. Only the "
+                f"recipes you check go on to substitutes and your shopping list; the top "
+                f"{DEFAULT_TOP} start checked.</span>", unsafe_allow_html=True)
+            for rank, record in enumerate(shown, start=1):
+                recipe_card(rank, record)
     with right:
+        if result.ranked:
+            count = len(st.session_state.chosen)
+            with st.container(border=True):
+                html("<div class='label'>Your choices</div>")
+                html(f"{count} recipe{'s' if count != 1 else ''} checked." if count
+                     else "<span class='muted'>Check at least one recipe to continue.</span>")
+            st.button(f"Review substitutes for {count} recipe{'s' if count != 1 else ''}",
+                      type="primary", disabled=not count, on_click=review_substitutes)
         hidden_box(ref, result)
         if result.unrecognized:
             with st.container(border=True):
                 html("<div class='label'>Skipped pantry items</div>")
                 show_unrecognized(result.unrecognized)
-        if result.ranked:
-            st.button("Review substitutes", type="primary", on_click=review_substitutes)
 
 
 # ---------------------------------------------------------------- step 4
 
 def review_substitutes():
-    """Remember the ranking as it was, so step 4 can show how each choice moves recipes."""
-    st.session_state.setdefault("ranking_before", [r.recipe.id for r in st.session_state.result.ranked])
+    """Remember the chosen recipes' order, so step 4 can show how each choice moves them."""
+    st.session_state.ranking_before = [r.recipe.id for r in chosen_records(st.session_state.result)]
     st.session_state.setdefault("rejected", {})
     go(4)
 
@@ -417,12 +509,12 @@ def decide(recipe_id, substitute, needed):
 
 
 def substitute_choices(result):
-    """(recipe, needed ingredient, substitute) for the swaps in the recipes shown on step 3,
-    plus every swap the user rejected, so it can be accepted again."""
-    names = {record.recipe.id: record.recipe for record in result.ranked}
+    """(recipe, needed ingredient, substitute) for the swaps in the recipes chosen on step 3,
+    plus every swap the user rejected in them, so it can be accepted again."""
+    chosen = chosen_records(result)
+    names = {record.recipe.id: record.recipe for record in chosen}
     choices = [(record.recipe, needed, use)
-               for record in result.ranked[:st.session_state.get("shown", PAGE_SIZE)]
-               for needed, use in record.substitutions.items()]
+               for record in chosen for needed, use in record.substitutions.items()]
     for (recipe_id, use), needed in st.session_state.rejected.items():
         if recipe_id in names:
             choices.append((names[recipe_id], needed, use))
@@ -445,7 +537,9 @@ def screen_substitutes(ref):
     result = st.session_state.result
     st.button("< Back to results", on_click=go, args=(3,))
     page_title("Review substitutes")
-    html("<span class='muted'>We only suggest swaps you have enough of that also fit "
+    count = len(chosen_records(result))
+    html(f"<span class='muted'>Swaps for the {count} recipe{'s' if count != 1 else ''} you chose. "
+         "We only suggest swaps you have enough of that also fit "
          "your diet. Reject one and we'll look for another swap or add the ingredient "
          "to your shopping list.</span>")
     st.write("")
@@ -456,8 +550,12 @@ def screen_substitutes(ref):
     with left:
         choices = substitute_choices(result)
         if not choices:
-            st.info("None of the recipes you're looking at need a substitute.")
-        for recipe, needed, use in sorted(choices, key=lambda c: (c[0].name, c[1])):
+            st.info("None of the recipes you chose need a substitute.")
+        # Same order as the ranking when this screen opened (#1 first). It stays put while
+        # you decide; only the "Updated rankings" box on the right moves.
+        start = st.session_state.ranking_before
+        order = lambda c: (start.index(c[0].id) if c[0].id in start else len(start), c[1])
+        for recipe, needed, use in sorted(choices, key=order):
             key = f"sub_{recipe.id}_{use}"
             st.session_state.setdefault(
                 key, "Reject" if (recipe.id, use) in st.session_state.rejected else "Accept")
@@ -469,9 +567,8 @@ def screen_substitutes(ref):
                          args=(recipe.id, use, needed))
     with right:
         with st.container(border=True):
-            html("<div class='label'>Updated rankings</div>")
-            for rank, record in enumerate(result.ranked[:st.session_state.get("shown", PAGE_SIZE)],
-                                          start=1):
+            html("<div class='label'>Updated rankings of your recipes</div>")
+            for rank, record in enumerate(chosen_records(result), start=1):
                 html(f"{rank}. {record.recipe.name} <span class='muted'>| "
                      f"{record.score:.2f} |</span> {movement(rank, record.recipe.id)}")
         st.button("Choose recipes", type="primary", on_click=go, args=(5,))
@@ -505,7 +602,8 @@ def screen_select(ref):
     result = st.session_state.result
     st.button("< Back to substitutes", on_click=go, args=(4,))
     page_title("Pick what you're cooking")
-    html("<span class='muted'>We'll save your picks to your history, so future rankings "
+    html("<span class='muted'>Your chosen recipes, in their new order. Uncheck any you've "
+         "changed your mind about. We'll save your picks to your history, so future rankings "
          "lean toward recipes like these, and make one shopping list for all of them.</span>")
     st.write("")
     if st.session_state.get("problem"):
@@ -516,12 +614,15 @@ def screen_select(ref):
         with st.container(border=True):
             html("<div class='label'>Your recipes</div>")
             picked = []
-            for record in result.ranked[:st.session_state.get("shown", PAGE_SIZE)]:
-                need = len(record.to_buy)
-                note = "ready to cook" if need == 0 else f"need {need} item{'s' if need > 1 else ''}"
-                if st.checkbox(f"{record.recipe.name} | {record.recipe.cook_time_min} min | {note}",
-                               key=f"pick_{record.recipe.id}"):
+            for rank, record in enumerate(chosen_records(result), start=1):
+                key = f"pick_{record.recipe.id}"
+                st.session_state.setdefault(key, True)          # chosen on step 3, so start checked
+                if st.checkbox(f"**{rank}. {record.recipe.name}** | {pantry_match(record):.0%} match "
+                               f"| {record.recipe.cook_time_min} min", key=key):
                     picked.append(record.recipe.id)
+                need = still_need(record)
+                html(f"<div class='pick-need'>Still need: {need}</div>" if need
+                     else "<div class='pick-need'>Ready to cook. Nothing to buy.</div>")
         picked = tuple(sorted(picked))
         saved = st.session_state.get("saved_picks")
         already_saved = saved is not None and saved[0] == picked
