@@ -226,5 +226,11 @@ __marimo__/
 .vscode/
 .idea/
 
-# the app's working copy of the profiles (see saved_profiles_dir in smart_shelf/ui/app.py)
-data/user_profiles/
+# the app's working copy of the profiles (see saved_profiles_dir in smart_shelf/ui/app.py),
+# here and inside Selected/ and Unselected/
+**/data/user_profiles/
+
+# Selected/ and Unselected/ ship compiled bytecode on purpose (the professor asks for
+# compiled code), so their compiled/ folders are kept even though *.pyc is ignored above
+!/Selected/compiled/**
+!/Unselected/compiled/**
