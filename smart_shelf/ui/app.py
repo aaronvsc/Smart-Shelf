@@ -364,14 +364,22 @@ def score_explanation(record):
     match, fresh, liked = (points(pantry_match(record)), points(record.freshness_boost),
                            points(record.preference_boost))
 
-    match_line = (f"**Pantry match: {show(match)} points.** You have {len(have)} of "
-                  f"the {plural(len(required), 'main ingredient')}.")
+    each = round(100 / len(required), 1)               # points per main ingredient
+    match_line = (f"**Pantry match: {show(match)} points.** Each of the "
+                  f"{plural(len(required), 'main ingredient')} is worth {show(each)} points. "
+                  f"You have {len(have)} of them ({show(round(each * len(have), 1))} points).")
     if swaps:
         count = len(record.substitutions)
+        # Worked out from the score, so it stays right if an architecture's setting changes.
+        share = (pantry_match(record) * len(required) - len(have)) / count
+        share_words = "half" if abs(share - 0.5) < 1e-6 else f"{share:.0%}"
         match_line += (f" {count} more {'is' if count == 1 else 'are'} covered by a substitute "
-                       f"({swaps}), which counts a little less than the real thing.")
+                       f"({swaps}), which counts {share_words} as much: "
+                       f"{show(round(each * share * count, 1))} points.")
     if record.to_buy:
-        match_line += f" You'd need to buy {plural(len(record.to_buy), 'item')}."
+        match_line += (f" {plural(len(record.to_buy), 'item')} to buy "
+                       f"({', '.join(gap.name for gap in record.to_buy)}) "
+                       f"{'earns' if len(record.to_buy) == 1 else 'earn'} 0 points.")
     fresh_line = (f"**Uses food that expires soon: +{show(fresh)}.** "
                   + ("It uses something in your pantry that's close to its expiry date."
                      if fresh else "None of its ingredients expire soon."))

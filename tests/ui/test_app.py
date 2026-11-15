@@ -400,9 +400,12 @@ def test_ranking_explanation_is_plain_and_adds_up(architecture):
     first = app.main.expander[0]
     assert first.label == "Why it's ranked #1"
     text = first.markdown[0].value
-    assert "You have 4 of the 5 main ingredients." in text
-    assert "covered by a substitute (tomato for canned tomatoes)" in text
+    assert "Each of the 5 main ingredients is worth 20 points. You have 4 of them (80 points)." in text
+    assert ("1 more is covered by a substitute (tomato for canned tomatoes), "
+            "which counts half as much: 10 points.") in text
     assert "Optional, and fine to skip: basil, salt." in text
+    third = app.main.expander[2].markdown[0].value
+    assert "1 item to buy (potato) earns 0 points." in third
     # The four bold numbers: match points, freshness bonus, history bonus, total.
     match, fresh, liked, total = [float(n) for n in re.findall(r"([\d.]+)(?: points)?\.\*\*", text)]
     assert round(match + fresh + liked, 1) == total
