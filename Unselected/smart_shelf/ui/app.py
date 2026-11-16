@@ -10,7 +10,7 @@ import base64
 import os
 import shutil
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -33,10 +33,13 @@ PANTRY_COLUMNS = ["Ingredient", "Quantity", "Unit", "Expires"]
 UNITS = ["g", "kg", "oz", "lb", "ml", "l", "fl oz", "tsp", "tbsp", "cup",
          "count", "clove", "slice", "stick", "can"]
 # A starting pantry so the app can be tried right away; the user can edit or clear it.
+# Expiry dates count from today, so the sample looks the same on any day it's opened
+# (tomato expires in 2 days, milk in 4) instead of going out of date.
 SAMPLE_PANTRY = [
     ("rice", 400, "g", None), ("egg", 6, "count", None), ("olive oil", 200, "ml", None),
     ("onion", 2, "count", None), ("garlic", 4, "clove", None), ("pasta", 500, "g", None),
-    ("tomato", 4, "count", "2026-11-16"), ("milk", 2, "cup", "2026-11-18"),
+    ("tomato", 4, "count", str(date.today() + timedelta(days=2))),
+    ("milk", 2, "cup", str(date.today() + timedelta(days=4))),
 ]
 
 # Extra styling the theme in .streamlit/config.toml can't do on its own.
@@ -182,6 +185,17 @@ def screen_pantry(ref):
     except ProfileError as error:
         st.error(f"Your profile couldn't be loaded, so we can't check your diet: {error}")
         return
+    # A restriction we have no rule for (e.g. "Vegan" or "keto") must stop the run, not be
+    # dropped: the diet boxes below would leave it out and save the profile without it.
+    diets, allergies = split_rules(ref)
+    unknown = ([name for name in profile.restrictions if name not in diets]
+               + [name for name in profile.allergies if name not in allergies])
+    if unknown:
+        st.error(f"Your profile lists {', '.join(repr(name) for name in unknown)}, which we "
+                 "can't match to our diet and allergy rules, so we can't check your diet safely. "
+                 f"Fix {profile.user_id}.json (diets: {', '.join(diets)}; allergies: "
+                 f"{', '.join(allergies)}) and reload the page.")
+        return
 
     left, right = st.columns([0.64, 0.36], gap="large")
     with left:
@@ -205,7 +219,6 @@ def screen_pantry(ref):
         html("<span class='muted'>To remove a row, select it on the left edge and press "
              "Delete.</span>")
     with right:
-        diets, allergies = split_rules(ref)
         with st.container(border=True):
             chosen_diets = st.multiselect("Dietary restrictions", diets,
                                           default=[r for r in profile.restrictions if r in diets],

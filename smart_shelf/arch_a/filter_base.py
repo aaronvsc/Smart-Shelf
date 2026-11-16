@@ -1,4 +1,8 @@
-"""Filter base class: reads its input pipe, processes each item, writes its output pipe."""
+"""Filter base class.
+
+In:  items from the input pipe, until END
+Out: process() results, then flush() results, then END on the output pipe
+"""
 from __future__ import annotations
 
 import threading
@@ -11,9 +15,7 @@ from smart_shelf.arch_a.stores import StoreView
 
 
 class Filter(threading.Thread):
-    # Items of these types are forwarded untouched (the Dietary summary).
     passthrough_types: tuple[type, ...] = (ExclusionSummary,)
-    # Data stores this filter may read (Figure 1's data-access arrows). Empty = none.
     reads: frozenset[str] = frozenset()
 
     def __init__(self, inp: Pipe | None, out: Pipe, ref: ReferenceData,
@@ -34,15 +36,15 @@ class Filter(threading.Thread):
                     self.out.put(result)
             for result in self.flush():
                 self.out.put(result)
-        except BaseException as e:      # recorded here, re-raised by Pipeline.run
+        except BaseException as e:
             self.error = e
         finally:
-            self.out.close()            # END always goes downstream, even on error
+            self.out.close()
 
     def process(self, item) -> Iterable:
-        """Yield nothing to drop the item, one item to pass it on, or many to fan out."""
+        """In: one item. Out: zero or more items."""
         raise NotImplementedError
 
     def flush(self) -> Iterable:
-        """Called once after END arrives. Override in filters that buffer."""
+        """Out: items to send after END arrives."""
         return ()

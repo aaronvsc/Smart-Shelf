@@ -1,4 +1,8 @@
-"""Creates, connects and runs the pipes and filters (Figure 1)."""
+"""Creates, connects and runs the pipes and filters.
+
+In:  raw pantry rows, user profile, rejected substitutes, today
+Out: PipelineResult (ranked records, unrecognized rows, exclusion summary)
+"""
 from __future__ import annotations
 
 import time
@@ -16,9 +20,6 @@ from smart_shelf.arch_a.pipe import Pipe
 from smart_shelf.arch_a.records import END, ExclusionSummary, PipelineResult, RecipeRecord
 from smart_shelf.arch_a.stores import read_only
 
-# Filters 2-10, in order, connected by pipes p2-p10. Filter 1 (Normalize) is called
-# first, like Figure 1's "submit pantry" procedure call: unrecognized items come
-# straight back to the caller, and the usable pantry goes down p1.
 DEFAULT_FILTERS: tuple[type[Filter], ...] = (
     MatchFilter, DietaryFilter, GapsFilter, SubstituteFilter, NutritionFilter,
     FreshnessFilter, PreferenceFilter, RankFilter, ShoppingListFilter,
@@ -40,13 +41,12 @@ class Pipeline:
     def run(self, raw_pantry: list[dict], profile: UserProfile | None,
             rejected_subs: Iterable[tuple[str, str]] = (),
             today: date | None = None) -> PipelineResult:
-        """Run once. A substitute decision means calling run() again with rejected_subs."""
         start = time.perf_counter()
         if profile is None:
             raise ValueError("A user profile is required; refusing to run without "
                              "the user's restrictions")
 
-        pipes = [Pipe(f"p{i + 1}") for i in range(len(self.filter_classes) + 1)]   # p1-p10
+        pipes = [Pipe(f"p{i + 1}") for i in range(len(self.filter_classes) + 1)]
         normalize = NormalizeFilter(None, pipes[0], self.ref)
         pantry, unrecognized = normalize.submit(raw_pantry, profile.all_restrictions,
                                                 rejected_subs, today or date.today())
@@ -54,7 +54,6 @@ class Pipeline:
             return PipelineResult("empty_pantry", unrecognized=unrecognized,
                                   elapsed_s=time.perf_counter() - start)
 
-        # The profile is the User Profile store; only filters that declare it can read it.
         filters = [cls(pipes[i], pipes[i + 1], self.ref, profile)
                    for i, cls in enumerate(self.filter_classes)]
         for f in filters:
@@ -89,12 +88,10 @@ class Pipeline:
 def combine_shopping_lists(result: PipelineResult, selected_ids: Iterable[str],
                            ref: ReferenceData, counts: dict[str, int] | None = None
                            ) -> list[tuple[str, float, str]]:
-    """Step 5: one shopping list (name, qty, unit) for all the selected recipes.
+    """Step 5.
 
-    The pantry is shared, so we add up what every selected recipe needs first
-    and subtract the pantry once. Summing each recipe's own shortfall would let
-    two recipes both "use" the same cup of rice. `counts` says how many times
-    to make a recipe (e.g. {"R003": 3}); recipes left out are made once.
+    In:  a PipelineResult, the selected recipe IDs, times to make each (default 1)
+    Out: one shopping list as (name, qty, base unit), pantry subtracted once
     """
     selected = set(selected_ids)
     counts = counts or {}
@@ -107,7 +104,7 @@ def combine_shopping_lists(result: PipelineResult, selected_ids: Iterable[str],
         for item in record.recipe.ingredients:
             gap = gaps.get(item.name)
             if gap is not None and not gap.required:
-                continue                    # optional and missing: left out, never bought
+                continue
             need = ref.to_base(item.name, item.qty, item.unit)
             if item.name in record.substitutions:
                 name = record.substitutions[item.name]

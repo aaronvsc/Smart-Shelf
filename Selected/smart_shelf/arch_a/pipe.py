@@ -1,4 +1,8 @@
-"""Pipe connector: a one-way stream between two filters."""
+"""Pipe connector.
+
+In:  items put() by the upstream filter
+Out: the same items, in order, from get(); END after close()
+"""
 from __future__ import annotations
 
 import queue
@@ -7,7 +11,7 @@ from smart_shelf.arch_a.records import END
 
 
 class PipeTimeout(Exception):
-    """A reader waited too long; the upstream filter is likely stuck."""
+    """Raised by get() when no item arrives within the timeout."""
 
 
 class Pipe:
@@ -19,7 +23,6 @@ class Pipe:
         self._q.put(item)
 
     def get(self, timeout: float | None = 10.0):
-        """Block until an item arrives. Returns END once the stream is closed."""
         try:
             return self._q.get(timeout=timeout)
         except queue.Empty:

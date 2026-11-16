@@ -1,4 +1,8 @@
-"""Filter 10 - Shopping List: every missing required ingredient with no available substitute."""
+"""Filter 10 - Shopping List.
+
+In:  RecipeRecord (p9)
+Out: the record with shopping_list filled in (p10)
+"""
 from smart_shelf.arch_a.filter_base import Filter
 from smart_shelf.arch_a.records import RecipeRecord
 

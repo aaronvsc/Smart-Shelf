@@ -1,8 +1,7 @@
-"""Filter 9 - Rank: the only filter that waits for every record before sending anything on.
+"""Filter 9 - Rank.
 
-Each required ingredient earns credit: on hand 1.0, substituted SUBSTITUTE_CREDIT,
-to buy 0. Closeness is the average credit; freshness and preference boosts are
-added on top. Ties break by fewer items to buy, then recipe ID (Consistency).
+In:  every RecipeRecord (p8)
+Out: the records with score filled in, sorted, after END arrives (p9)
 """
 from smart_shelf.arch_a.config import SUBSTITUTE_CREDIT
 from smart_shelf.arch_a.filter_base import Filter
