@@ -1,6 +1,7 @@
-"""Filter 7 - Freshness: boost recipes that use pantry items close to expiring.
+"""Filter 7 - Freshness.
 
-Reads no store: the pantry and today's date arrive with the record.
+In:  RecipeRecord (p6)
+Out: the record with freshness_boost filled in (p7)
 """
 from smart_shelf.arch_a.config import (
     FRESHNESS_MAX_BOOST, FRESHNESS_WEIGHT_PER_ITEM, FRESHNESS_WINDOW_DAYS,
@@ -20,7 +21,6 @@ class FreshnessFilter(Filter):
                 continue
             days = (item.expires - today).days
             if 0 <= days <= FRESHNESS_WINDOW_DAYS:
-                # sooner expiry -> bigger boost
                 boost += FRESHNESS_WEIGHT_PER_ITEM * (FRESHNESS_WINDOW_DAYS + 1 - days) / (FRESHNESS_WINDOW_DAYS + 1)
                 record.note(self.name, f"uses {name}, expires in {days} day(s)")
         record.freshness_boost = min(boost, FRESHNESS_MAX_BOOST)

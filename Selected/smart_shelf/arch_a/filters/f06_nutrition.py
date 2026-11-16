@@ -1,4 +1,8 @@
-"""Filter 6 - Nutrition: calories and macros from per-ingredient data, reflecting substitutes."""
+"""Filter 6 - Nutrition.
+
+In:  RecipeRecord (p5)
+Out: the record with nutrition filled in (p6)
+"""
 from smart_shelf.arch_a.filter_base import Filter
 from smart_shelf.common.models import Nutrition
 from smart_shelf.arch_a.records import RecipeRecord
@@ -6,7 +10,6 @@ from smart_shelf.arch_a.stores import INGREDIENT_DICTIONARY, SUBSTITUTION_NUTRIT
 
 
 class NutritionFilter(Filter):
-    # Nutrition values are per 100 g/ml or per item, so the base unit comes from the dictionary.
     reads = frozenset({SUBSTITUTION_NUTRITION, INGREDIENT_DICTIONARY})
 
     def process(self, record: RecipeRecord):
@@ -16,7 +19,7 @@ class NutritionFilter(Filter):
         for ing, need_unit in zip(record.recipe.ingredients, record.needs):
             gap = gaps.get(ing.name)
             if gap is not None and not gap.required:
-                continue                    # optional and missing: not in the dish
+                continue
             need = need_unit[0] if need_unit else 0.0
             parts = [(ing.name, need)]
             if gap is not None and ing.name in record.substitutions:

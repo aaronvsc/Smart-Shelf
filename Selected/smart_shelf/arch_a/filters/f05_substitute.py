@@ -1,4 +1,8 @@
-"""Filter 5 - Substitute: cover missing required ingredients with compliant swaps the user has enough of."""
+"""Filter 5 - Substitute.
+
+In:  RecipeRecord (p4)
+Out: the record with substitutions and to_buy filled in (p5)
+"""
 from smart_shelf.arch_a.config import EPSILON
 from smart_shelf.arch_a.filter_base import Filter
 from smart_shelf.common.models import Substitute, UserProfile
@@ -7,8 +11,6 @@ from smart_shelf.arch_a.stores import INGREDIENT_DICTIONARY, SUBSTITUTION_NUTRIT
 
 
 class SubstituteFilter(Filter):
-    # The Ingredient Dictionary gives each substitute's tags (to check the user's
-    # restrictions, which arrive with the record) and its base unit.
     reads = frozenset({SUBSTITUTION_NUTRITION, INGREDIENT_DICTIONARY})
 
     def process(self, record: RecipeRecord):
@@ -16,7 +18,7 @@ class SubstituteFilter(Filter):
         restrictions = UserProfile("run", restrictions=record.run.restrictions)
         for gap in record.missing:
             if not gap.required:
-                continue                    # optional and missing: just left out, never bought
+                continue
             sub = self._find(record, gap, remaining, restrictions) if gap.substitutable else None
             if sub is None:
                 record.to_buy.append(gap)
@@ -30,7 +32,7 @@ class SubstituteFilter(Filter):
 
     @staticmethod
     def _remaining_after(record: RecipeRecord) -> dict[str, float]:
-        """Pantry quantities left once this recipe's own ingredients are used."""
+        """Out: pantry quantities left after this recipe's own ingredients."""
         remaining = {name: item.qty for name, item in record.run.items.items()}
         for ing, need_unit in zip(record.recipe.ingredients, record.needs):
             if ing.name in remaining:

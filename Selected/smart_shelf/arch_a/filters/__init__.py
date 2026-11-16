@@ -1,4 +1,4 @@
-"""The 10 filters of Architecture A, in pipeline order."""
+"""The 10 filters, in pipeline order."""
 from smart_shelf.arch_a.filters.f01_normalize import NormalizeFilter
 from smart_shelf.arch_a.filters.f02_match import MatchFilter
 from smart_shelf.arch_a.filters.f03_dietary import DietaryFilter

@@ -1,6 +1,7 @@
-"""Filter 4 - Detect Gaps: find missing or short ingredients.
+"""Filter 4 - Detect Gaps.
 
-Reads no store: the pantry and the recipe's base-unit quantities arrive with the record.
+In:  RecipeRecord (p3)
+Out: the record with on_hand and missing filled in (p4)
 """
 from smart_shelf.arch_a.config import EPSILON
 from smart_shelf.arch_a.filter_base import Filter

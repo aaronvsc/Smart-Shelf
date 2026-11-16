@@ -1,4 +1,8 @@
-"""Filter 2 - Match Recipes: send out each fully or partially makeable recipe as its own record."""
+"""Filter 2 - Match Recipes.
+
+In:  NormalizedPantry (p1)
+Out: one RecipeRecord per makeable recipe, in recipe ID order (p2)
+"""
 from smart_shelf.arch_a.config import MATCH_MIN_REQUIRED_ON_HAND
 from smart_shelf.arch_a.filter_base import Filter
 from smart_shelf.arch_a.records import NormalizedPantry, RecipeRecord
@@ -6,7 +10,7 @@ from smart_shelf.arch_a.stores import INGREDIENT_DICTIONARY, RECIPE_DATABASE
 
 
 def recipe_needs(recipe, stores) -> tuple:
-    """Each ingredient's quantity in base units, as (qty, unit), in recipe order."""
+    """In: a recipe. Out: each ingredient's (qty, base unit), in recipe order."""
     needs = []
     for ing in recipe.ingredients:
         qty = stores.to_base(ing.name, ing.qty, ing.unit)
@@ -15,12 +19,10 @@ def recipe_needs(recipe, stores) -> tuple:
 
 
 class MatchFilter(Filter):
-    # Also reads the Ingredient Dictionary to put recipe quantities in base units,
-    # so later filters compare quantities without their own store access.
     reads = frozenset({RECIPE_DATABASE, INGREDIENT_DICTIONARY})
 
     def process(self, pantry: NormalizedPantry):
-        for recipe in sorted(self.stores.recipes, key=lambda r: r.id):    # fixed order (Consistency)
+        for recipe in sorted(self.stores.recipes, key=lambda r: r.id):
             required = [i.name for i in recipe.ingredients if i.required]
             on_hand = [n for n in required if n in pantry.items]
             if required and len(on_hand) >= MATCH_MIN_REQUIRED_ON_HAND:

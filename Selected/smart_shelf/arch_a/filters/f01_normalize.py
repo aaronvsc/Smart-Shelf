@@ -1,4 +1,8 @@
-"""Filter 1 - Parse & Normalize: clean names and units with the Ingredient Dictionary."""
+"""Filter 1 - Parse & Normalize.
+
+In:  raw pantry rows, restrictions, rejected substitutes, today (via submit())
+Out: NormalizedPantry on p1; unrecognized rows returned to the caller
+"""
 from __future__ import annotations
 
 import difflib
@@ -23,13 +27,10 @@ UNIT_ALIASES = {
     "piece": "count", "pieces": "count", "pc": "count", "pcs": "count",
     "each": "count", "whole": "count",
 }
-# Units that convert the same way for every ingredient with the matching base unit.
 METRIC = {"kg": ("g", 1000.0), "l": ("ml", 1000.0)}
 
 
 class NormalizeFilter(Filter):
-    """The UI calls submit() (Figure 1's "submit pantry" procedure call). Unrecognized
-    rows go straight back to the caller; everything usable goes down p1 to Match."""
     reads = frozenset({INGREDIENT_DICTIONARY})
 
     def submit(self, rows: list[dict], restrictions: tuple[str, ...],
@@ -48,7 +49,7 @@ class NormalizeFilter(Filter):
     @staticmethod
     def normalize(rows: list[dict], ref: ReferenceData
                   ) -> tuple[dict[str, PantryItem], list[UnrecognizedItem]]:
-        """Return (pantry keyed by ingredient name, rows we could not use). Never raises on a bad row."""
+        """In: raw rows. Out: (pantry keyed by ingredient name, unrecognized rows)."""
         lookup: dict[str, Ingredient] = {}
         for ing in ref.ingredients.values():
             lookup[_clean(ing.name)] = ing
@@ -84,7 +85,7 @@ class NormalizeFilter(Filter):
                 continue
 
             prev = pantry.get(ing.name)
-            if prev is not None:            # merge duplicate rows, keep the earliest expiry
+            if prev is not None:
                 dates = [d for d in (prev.expires, expires) if d is not None]
                 pantry[ing.name] = PantryItem(ing.name, prev.qty + base_qty, ing.base_unit,
                                               min(dates) if dates else None)
