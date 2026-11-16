@@ -197,6 +197,29 @@ def test_app_works_on_a_copy_of_the_sample_profiles(saved_profiles):
     assert (PROFILES_DIR / "demo.json").read_text() == sample
 
 
+@pytest.mark.parametrize("architecture", list(BACKENDS))
+@pytest.mark.parametrize("restrictions, allergies, named", [
+    (["Vegan"], [], "'Vegan'"),             # wrong case: our rules are lowercase
+    (["keto"], [], "'keto'"),               # no rule for it at all
+    ([], ["peanuts"], "'peanuts'"),         # misspelled allergy
+    (["peanut"], [], "'peanut'"),           # an allergy filed under diets
+])
+def test_a_restriction_we_have_no_rule_for_stops_step_one(saved_profiles, architecture,
+                                                          restrictions, allergies, named):
+    """Rule 11: stop with an error instead of dropping the restriction and running without it."""
+    import json
+    saved_profiles.mkdir(parents=True, exist_ok=True)
+    profile = saved_profiles / "demo.json"
+    profile.write_text(json.dumps({"user_id": "demo", "restrictions": restrictions,
+                                   "allergies": allergies, "history": []}))
+    before = profile.read_text()
+    app = start(architecture)
+    assert not app.exception
+    assert len(app.error) == 1 and named in app.error[0].value
+    assert not [b for b in app.button if b.label == "Find recipes"]      # no way to search
+    assert profile.read_text() == before                                  # nothing saved over it
+
+
 # ----------------------------------------------------------- step 4: substitutes
 
 def substitutes(architecture, uncheck=(), check=()):
