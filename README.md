@@ -217,6 +217,21 @@ reproduce the comparison on your machine.
   into architecture-specific calls. Queue and blackboard connectors belong to
   their respective architectures.
 
+Architecture A in more detail (Georgiana):
+
+- `Pipe` and `Filter` know nothing about recipes, so they can be reused for any
+  pipe-and-filter system. Each of the ten filters only implements `process()`,
+  plus `flush()` for Rank, which has to see every record before it can sort.
+- Each filter declares the data stores it reads. `stores.py` gives it read-only
+  views of only those stores and raises an error for any other, so the code
+  can't quietly drift from the data-access arrows in Figure 1 of the proposal.
+- The run's input (pantry, restrictions, rejected substitutes and date) travels
+  down p1 and then with each record. Filters share no state, and a swap decision
+  is simply a new run.
+- `tests/arch_a/` has 107 tests: each filter on its own with fixed records, the
+  pipe and filter base class, the whole pipeline, and 20 design checks that fail
+  if the code stops matching Figure 1.
+
 ### Changes from the proposal
 
 The two candidate styles and the preference for A were retained from the
@@ -227,6 +242,26 @@ session state and goes through that facade for all board operations. The engine
 centralizes input validation, incremental updates and history deduplication.
 The shopping list in both implementations aggregates quantities across selected
 recipes before subtracting pantry stock, so one item cannot be counted twice.
+
+Changes to Architecture A during implementation (Georgiana):
+
+- **More store reads than Figure 1 draws.** The figure shows each filter's main
+  data store. In the code, filters 2, 3, 5 and 6 also read the Ingredient
+  Dictionary (units, ingredient tags and restriction rules), and filter 8 also
+  reads the Recipe Database (the cuisine of past picks). The readers are still
+  only filters 1, 2, 3, 5, 6 and 8, as the proposal says, and every read is
+  read-only.
+- **One ranking score instead of a strict sort.** The proposal ranks by on hand,
+  then substituted, then to buy. Both architectures use one score instead: an
+  ingredient on hand counts 1, a substituted one 0.5 and one to buy 0, plus
+  small boosts for expiring food and past picks. Ties go to the recipe with
+  fewer items to buy, then the lower recipe ID.
+- **The combined shopping list is built after the pipeline.** Each recipe
+  streams through the filters on its own, so the pipeline never sees several
+  recipes' needs together. To count the pantry only once, Step 5 adds up what
+  the chosen recipes need and subtracts the pantry after the run. B can do this
+  inside the blackboard. In A it is extra work outside the pipeline, a
+  trade-off of the pipe-and-filter style.
 
 Changes to the shared data layer and UI during implementation (Aaron):
 
