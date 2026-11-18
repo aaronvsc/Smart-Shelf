@@ -188,12 +188,12 @@ require explicit completion and error handling. B offers independently testable
 knowledge sources and incremental updates, with additional scheduling and
 snapshot-management costs.
 
-On the release baseline `879184a`, `python scripts/compare_architectures.py`
+On commit `502fcfe`, `python scripts/compare_architectures.py`
 produced matching ordered recommendation outputs in ten repeats with the
-checked-in 200 recipes and 50 pantry items. On macOS 13.7.8 (Intel, Python
-3.11.0), median engine time was 41.305 ms for A and 571.528 ms for B.
-Rejecting olive oil for R047 activated five B sources, with a 355.093 ms
-median versus 37.499 ms for A's full rerun. B copies region snapshots, which
+checked-in 200 recipes and 50 pantry items. On macOS 13.7.8 (Intel Core
+i5-7360U, Python 3.12.14), median engine time was 81 ms for A and 1,301 ms
+for B. Rejecting olive oil for R047 activated five B sources, with a 709 ms
+median versus 81 ms for A's full rerun. B copies region snapshots, which
 adds work even when early results are reused. These measurements cover engine
 execution on one machine. They exclude browser rendering and use a fixed
 analysis date. The proposal's two-second target applies to the user-visible
